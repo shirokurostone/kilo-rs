@@ -164,6 +164,44 @@ fn read_editor_key(reader: &mut dyn Read) -> Result<EditorKey, Error> {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::{read_editor_key, EditorKey};
+    use std::io::BufReader;
+
+    #[test]
+    fn test_read_editor_key() {
+        let assert = |input: &str, expected: EditorKey| {
+            let data = input.bytes().collect::<Vec<u8>>();
+            let mut reader = BufReader::new(&data[..]);
+            let actual = read_editor_key(&mut reader);
+            assert_eq!(expected, actual.unwrap(), "input:{}", input.escape_debug());
+        };
+
+        assert("\x11", EditorKey::Exit);
+
+        assert("\x1b[A", EditorKey::ArrowUp);
+        assert("\x1b[B", EditorKey::ArrowDown);
+        assert("\x1b[C", EditorKey::ArrowRight);
+        assert("\x1b[D", EditorKey::ArrowLeft);
+        assert("\x1b[H", EditorKey::Home);
+        assert("\x1b[F", EditorKey::End);
+
+        assert("\x1b[1~", EditorKey::Home);
+        assert("\x1b[3~", EditorKey::Delete);
+        assert("\x1b[4~", EditorKey::End);
+        assert("\x1b[5~", EditorKey::PageUp);
+        assert("\x1b[6~", EditorKey::PageDown);
+        assert("\x1b[7~", EditorKey::Home);
+        assert("\x1b[8~", EditorKey::End);
+
+        assert("\x1bOH", EditorKey::Home);
+        assert("\x1bOF", EditorKey::End);
+
+        assert("a", EditorKey::OtherKey('a'));
+    }
+}
+
 #[derive(Debug, PartialEq)]
 enum EditorKey {
     Exit,
