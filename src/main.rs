@@ -6,6 +6,7 @@ use std::time::SystemTime;
 const KILO_VERSION: &str = "0.1.0";
 const TAB_STOP: usize = 8;
 
+#[derive(Debug, PartialEq)]
 struct EditorConfig {
     cx: usize,
     cy: usize,
@@ -20,11 +21,13 @@ struct EditorConfig {
     message_time: SystemTime,
 }
 
+#[derive(Debug, PartialEq)]
 struct EditorLine {
     line: String,
     render: String,
 }
 
+#[derive(Debug, PartialEq)]
 struct EditorBuffer {
     lines: Vec<EditorLine>,
 }
@@ -161,6 +164,7 @@ fn read_editor_key(reader: &mut dyn Read) -> Result<EditorKey, Error> {
     }
 }
 
+#[derive(Debug, PartialEq)]
 enum EditorKey {
     Exit,
     ArrowLeft,
