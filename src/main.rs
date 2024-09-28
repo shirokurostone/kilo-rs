@@ -123,34 +123,34 @@ fn read_editor_key(reader: &mut dyn Read) -> Result<EditorKey, Error> {
                 'D' => Ok(EditorKey::ArrowLeft),
                 'H' => Ok(EditorKey::Home),
                 'F' => Ok(EditorKey::End),
-                _ => Ok(EditorKey::OtherKey('\x1b')),
-            },
-            '1' => match read_single_key(reader)? {
-                '~' => Ok(EditorKey::Home),
-                _ => Ok(EditorKey::OtherKey('\x1b')),
-            },
-            '3' => match read_single_key(reader)? {
-                '~' => Ok(EditorKey::Delete),
-                _ => Ok(EditorKey::OtherKey('\x1b')),
-            },
-            '4' => match read_single_key(reader)? {
-                '~' => Ok(EditorKey::End),
-                _ => Ok(EditorKey::OtherKey('\x1b')),
-            },
-            '5' => match read_single_key(reader)? {
-                '~' => Ok(EditorKey::PageUp),
-                _ => Ok(EditorKey::OtherKey('\x1b')),
-            },
-            '6' => match read_single_key(reader)? {
-                '~' => Ok(EditorKey::PageDown),
-                _ => Ok(EditorKey::OtherKey('\x1b')),
-            },
-            '7' => match read_single_key(reader)? {
-                '~' => Ok(EditorKey::Home),
-                _ => Ok(EditorKey::OtherKey('\x1b')),
-            },
-            '8' => match read_single_key(reader)? {
-                '~' => Ok(EditorKey::End),
+                '1' => match read_single_key(reader)? {
+                    '~' => Ok(EditorKey::Home),
+                    _ => Ok(EditorKey::OtherKey('\x1b')),
+                },
+                '3' => match read_single_key(reader)? {
+                    '~' => Ok(EditorKey::Delete),
+                    _ => Ok(EditorKey::OtherKey('\x1b')),
+                },
+                '4' => match read_single_key(reader)? {
+                    '~' => Ok(EditorKey::End),
+                    _ => Ok(EditorKey::OtherKey('\x1b')),
+                },
+                '5' => match read_single_key(reader)? {
+                    '~' => Ok(EditorKey::PageUp),
+                    _ => Ok(EditorKey::OtherKey('\x1b')),
+                },
+                '6' => match read_single_key(reader)? {
+                    '~' => Ok(EditorKey::PageDown),
+                    _ => Ok(EditorKey::OtherKey('\x1b')),
+                },
+                '7' => match read_single_key(reader)? {
+                    '~' => Ok(EditorKey::Home),
+                    _ => Ok(EditorKey::OtherKey('\x1b')),
+                },
+                '8' => match read_single_key(reader)? {
+                    '~' => Ok(EditorKey::End),
+                    _ => Ok(EditorKey::OtherKey('\x1b')),
+                },
                 _ => Ok(EditorKey::OtherKey('\x1b')),
             },
             'O' => match read_single_key(reader)? {
