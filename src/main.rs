@@ -27,7 +27,7 @@ fn init_editor() -> Result<EditorConfig, Error> {
     })
 }
 
-fn read_editor_key(mut reader: impl Read) -> Result<char, Error> {
+fn read_single_key(reader: &mut dyn Read) -> Result<char, Error> {
     let mut buf = [0u8; 1];
 
     loop {
@@ -38,13 +38,123 @@ fn read_editor_key(mut reader: impl Read) -> Result<char, Error> {
     }
 }
 
-fn process_key_press(reader: impl Read) -> Result<(), Error> {
-    match read_editor_key(reader)? {
+fn read_editor_key(reader: &mut dyn Read) -> Result<EditorKey, Error> {
+    match read_single_key(reader)? {
         '\x11' => {
+            // ctrl+q
+            Ok(EditorKey::Exit)
+        }
+        '\x1b' => match read_single_key(reader)? {
+            '[' => match read_single_key(reader)? {
+                'A' => Ok(EditorKey::ArrowUp),
+                'B' => Ok(EditorKey::ArrowDown),
+                'C' => Ok(EditorKey::ArrowRight),
+                'D' => Ok(EditorKey::ArrowLeft),
+                'H' => Ok(EditorKey::Home),
+                'F' => Ok(EditorKey::End),
+                _ => Ok(EditorKey::OtherKey('\x1b')),
+            },
+            '1' => match read_single_key(reader)? {
+                '~' => Ok(EditorKey::Home),
+                _ => Ok(EditorKey::OtherKey('\x1b')),
+            },
+            '3' => match read_single_key(reader)? {
+                '~' => Ok(EditorKey::Delete),
+                _ => Ok(EditorKey::OtherKey('\x1b')),
+            },
+            '4' => match read_single_key(reader)? {
+                '~' => Ok(EditorKey::End),
+                _ => Ok(EditorKey::OtherKey('\x1b')),
+            },
+            '5' => match read_single_key(reader)? {
+                '~' => Ok(EditorKey::PageUp),
+                _ => Ok(EditorKey::OtherKey('\x1b')),
+            },
+            '6' => match read_single_key(reader)? {
+                '~' => Ok(EditorKey::PageDown),
+                _ => Ok(EditorKey::OtherKey('\x1b')),
+            },
+            '7' => match read_single_key(reader)? {
+                '~' => Ok(EditorKey::Home),
+                _ => Ok(EditorKey::OtherKey('\x1b')),
+            },
+            '8' => match read_single_key(reader)? {
+                '~' => Ok(EditorKey::End),
+                _ => Ok(EditorKey::OtherKey('\x1b')),
+            },
+            'O' => match read_single_key(reader)? {
+                'H' => Ok(EditorKey::Home),
+                'F' => Ok(EditorKey::End),
+                _ => Ok(EditorKey::OtherKey('\x1b')),
+            },
+            _ => Ok(EditorKey::OtherKey('\x1b')),
+        },
+        c => Ok(EditorKey::OtherKey(c)),
+    }
+}
+
+enum EditorKey {
+    Exit,
+    ArrowLeft,
+    ArrowRight,
+    ArrowUp,
+    ArrowDown,
+    PageUp,
+    PageDown,
+    Home,
+    End,
+    Delete,
+    OtherKey(char),
+}
+
+fn process_key_press(config: &mut EditorConfig, reader: &mut dyn Read) -> Result<(), Error> {
+    match read_editor_key(reader)? {
+        EditorKey::Exit => {
             // ctrl+q
             return Err(Error::other("exit"));
         }
-        c => {
+        EditorKey::ArrowDown => {
+            if config.cy < config.screen_height - 1 {
+                config.cy += 1;
+            }
+        }
+        EditorKey::ArrowUp => {
+            if config.cy > 0 {
+                config.cy -= 1;
+            }
+        }
+        EditorKey::ArrowLeft => {
+            if config.cx > 0 {
+                config.cx -= 1;
+            }
+        }
+        EditorKey::ArrowRight => {
+            if config.cx < config.screen_width - 1 {
+                config.cx += 1;
+            }
+        }
+        EditorKey::PageUp => {
+            if config.cy < config.screen_height {
+                config.cy = 0;
+            } else {
+                config.cy -= config.screen_height;
+            }
+            config.cy = 0;
+        }
+        EditorKey::PageDown => {
+            config.cy += config.screen_height;
+            if config.cy > config.screen_height - 1 {
+                config.cy = config.screen_height - 1;
+            }
+        }
+        EditorKey::Home => {
+            config.cx = 0;
+        }
+        EditorKey::End => {
+            config.cx = config.screen_width - 1;
+        }
+        EditorKey::Delete => {}
+        EditorKey::OtherKey(c) => {
             print!("{}\r\n", c);
         }
     }
@@ -59,7 +169,7 @@ fn refresh_screen(config: &EditorConfig) -> Result<(), Error> {
 
     draw_rows(config, &mut buf)?;
 
-    let cursor = format!("\x1b[{}H\x1b[{}d", config.cx + 1, config.cy + 1);
+    let cursor = format!("\x1b[{};{}H", config.cy + 1, config.cx + 1);
     buf.push_str(&cursor);
 
     buf.push_str("\x1b[?25h");
@@ -72,7 +182,7 @@ fn refresh_screen(config: &EditorConfig) -> Result<(), Error> {
 
 fn draw_rows(config: &EditorConfig, buf: &mut String) -> Result<(), Error> {
     for i in 0..config.screen_height {
-        if i == config.screen_width / 3 {
+        if i == config.screen_height / 3 {
             let title = format!("kilo-rs -- version {}", KILO_VERSION);
             let t: String = title.chars().take(config.screen_width).collect();
             let mut padding = (config.screen_width - t.len()) / 2;
@@ -97,14 +207,14 @@ fn draw_rows(config: &EditorConfig, buf: &mut String) -> Result<(), Error> {
 }
 
 fn run() -> Result<(), Error> {
-    let stdin = stdin();
-    let config = init_editor()?;
+    let mut stdin = stdin();
+    let mut config = init_editor()?;
 
     enable_raw_mode()?;
 
     loop {
         refresh_screen(&config)?;
-        match process_key_press(&stdin) {
+        match process_key_press(&mut config, &mut stdin) {
             Err(_) => break,
             Ok(_) => continue,
         }
