@@ -495,20 +495,24 @@ fn scroll(screen: &mut EditorScreen, buffer: &EditorBuffer) {
     }
 }
 
-fn refresh_screen(config: &mut EditorConfig) -> Result<(), Error> {
+fn refresh_screen(
+    screen: &EditorScreen,
+    buffer: &EditorBuffer,
+    message_bar: &MessageBar,
+) -> Result<(), Error> {
     let mut buf = String::new();
 
     buf.push_str("\x1b[?25l");
     buf.push_str("\x1b[H");
 
-    draw_rows(&config.screen, &config.buffer, &mut buf)?;
-    draw_statusbar(&config.screen, &config.buffer, &mut buf)?;
-    draw_messagebar(&config.message_bar, &mut buf)?;
+    draw_rows(&screen, &buffer, &mut buf)?;
+    draw_statusbar(&screen, &buffer, &mut buf)?;
+    draw_messagebar(&message_bar, &mut buf)?;
 
     let cursor = format!(
         "\x1b[{};{}H",
-        (config.screen.cy - config.screen.offset_y) + 1,
-        (config.screen.rx - config.screen.offset_x) + 1
+        (screen.cy - screen.offset_y) + 1,
+        (screen.rx - screen.offset_x) + 1
     );
     buf.push_str(&cursor);
 
@@ -621,7 +625,7 @@ fn run(args: Vec<String>) -> Result<(), Error> {
     enable_raw_mode()?;
 
     loop {
-        refresh_screen(&mut config)?;
+        refresh_screen(&config.screen, &config.buffer, &config.message_bar)?;
         match process_key_press(
             &mut config.screen,
             &config.buffer,
