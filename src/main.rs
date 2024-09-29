@@ -166,8 +166,119 @@ fn read_editor_key(reader: &mut dyn Read) -> Result<EditorKey, Error> {
 
 #[cfg(test)]
 mod tests {
-    use super::{read_editor_key, EditorKey};
+    use super::{
+        convert_render, editor_cx_to_rx, read_editor_key, scroll, EditorBuffer, EditorConfig,
+        EditorKey, EditorLine,
+    };
     use std::io::BufReader;
+    use std::time::SystemTime;
+
+    #[test]
+    fn test_convert_render() {
+        assert_eq!("hoge", convert_render("hoge"));
+
+        assert_eq!("        ", convert_render("\t"));
+        assert_eq!("1       ", convert_render("1\t"));
+        assert_eq!("12      ", convert_render("12\t"));
+        assert_eq!("123     ", convert_render("123\t"));
+        assert_eq!("1234    ", convert_render("1234\t"));
+        assert_eq!("12345   ", convert_render("12345\t"));
+        assert_eq!("123456  ", convert_render("123456\t"));
+        assert_eq!("1234567 ", convert_render("1234567\t"));
+        assert_eq!("12345678        ", convert_render("12345678\t"));
+    }
+
+    #[test]
+    fn test_editor_cx_to_rx() {
+        let config = EditorConfig {
+            cx: 4,
+            cy: 0,
+            rx: 0,
+            offset_x: 0,
+            offset_y: 0,
+            screen_width: 0,
+            screen_height: 0,
+            filepath: None,
+            buffer: EditorBuffer {
+                lines: vec![EditorLine {
+                    line: "123\t456".to_string(),
+                    render: "123     456".to_string(),
+                }],
+            },
+            message: "".to_string(),
+            message_time: SystemTime::now(),
+        };
+
+        let rx = editor_cx_to_rx(&config);
+        assert_eq!(8, rx);
+    }
+
+    #[test]
+    fn test_scroll() {
+        let mut config = EditorConfig {
+            cx: 0,
+            cy: 0,
+            rx: 0,
+            offset_x: 0,
+            offset_y: 0,
+            screen_width: 20,
+            screen_height: 20,
+            filepath: None,
+            buffer: EditorBuffer { lines: vec![] },
+            message: "".to_string(),
+            message_time: SystemTime::now(),
+        };
+
+        for _ in 0..100 {
+            config.buffer.lines.push(EditorLine {
+                line: "*".to_string().repeat(100),
+                render: "*".to_string().repeat(100),
+            })
+        }
+
+        config.cx = 10;
+        config.cy = 0;
+        config.rx = 0;
+        config.offset_x = 0;
+        config.offset_y = 0;
+        scroll(&mut config);
+        assert_eq!(10, config.rx);
+        assert_eq!(0, config.offset_x);
+
+        config.cx = 10;
+        config.cy = 0;
+        config.rx = 0;
+        config.offset_x = 50;
+        config.offset_y = 0;
+        scroll(&mut config);
+        assert_eq!(10, config.rx);
+        assert_eq!(10, config.offset_x);
+
+        config.cx = 50;
+        config.cy = 0;
+        config.rx = 0;
+        config.offset_x = 0;
+        config.offset_y = 0;
+        scroll(&mut config);
+        assert_eq!(50, config.rx);
+        assert_eq!(31, config.offset_x);
+
+        config.cx = 0;
+        config.cy = 10;
+        config.rx = 0;
+        config.offset_x = 0;
+        config.offset_y = 50;
+        scroll(&mut config);
+        assert_eq!(10, config.offset_y);
+
+        config.cx = 0;
+        config.cy = 50;
+        config.rx = 0;
+        config.offset_x = 0;
+        config.offset_y = 0;
+        scroll(&mut config);
+        assert_eq!(31, config.offset_y);
+    }
 
     #[test]
     fn test_read_editor_key() {
