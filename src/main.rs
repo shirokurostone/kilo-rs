@@ -515,9 +515,9 @@ fn refresh_screen(
     buf.push_str("\x1b[?25l");
     buf.push_str("\x1b[H");
 
-    draw_rows(&screen, &buffer, &mut buf)?;
-    draw_statusbar(&screen, &buffer, &mut buf)?;
-    draw_messagebar(&message_bar, &mut buf)?;
+    draw_rows(screen, buffer, &mut buf)?;
+    draw_statusbar(screen, buffer, &mut buf)?;
+    draw_messagebar(message_bar, &mut buf)?;
 
     let cursor = format!(
         "\x1b[{};{}H",
