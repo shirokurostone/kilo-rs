@@ -36,6 +36,66 @@ impl EditorScreen {
             height: 0,
         }
     }
+
+    fn down(&mut self, buffer: &EditorBuffer) {
+        if buffer.len() != 0 && self.cy < buffer.len() {
+            self.cy += 1;
+        }
+    }
+
+    fn up(&mut self, _: &EditorBuffer) {
+        if self.cy > 0 {
+            self.cy -= 1;
+        }
+    }
+
+    fn left(&mut self, buffer: &EditorBuffer) {
+        if self.cx > 0 {
+            self.cx -= 1;
+        } else if self.cy > 0 {
+            if let Some(line) = buffer.get_line(self.cy - 1) {
+                self.cy -= 1;
+                self.cx = line.len();
+            }
+        }
+    }
+
+    fn right(&mut self, buffer: &EditorBuffer) {
+        if let Some(line) = buffer.get_line(self.cy) {
+            if self.cx < line.len() {
+                self.cx += 1;
+            } else if self.cx == line.len() {
+                self.cy += 1;
+                self.cx = 0;
+            }
+        }
+    }
+
+    fn page_up(&mut self, buffer: &EditorBuffer) {
+        self.cy = self.offset_y;
+        for _ in 0..self.height {
+            self.up(buffer);
+        }
+    }
+
+    fn page_down(&mut self, buffer: &EditorBuffer) {
+        self.cy = self.offset_y + self.height - 1;
+        for _ in 0..self.height {
+            self.down(buffer);
+        }
+    }
+
+    fn home(&mut self, _: &EditorBuffer) {
+        self.cx = 0;
+    }
+
+    fn end(&mut self, buffer: &EditorBuffer) {
+        if self.cy < buffer.len() {
+            if let Some(line) = buffer.get_line(self.cy) {
+                self.cx = line.len();
+            }
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -380,69 +440,19 @@ fn process_key_press(
     buffer: &EditorBuffer,
     editor_key: EditorKey,
 ) -> Result<(), Error> {
-    let current_line = buffer.get_line(screen.cy);
-
     match editor_key {
         EditorKey::Exit => {
             // ctrl+q
             return Err(Error::other("exit"));
         }
-        EditorKey::ArrowDown => {
-            if buffer.len() != 0 && screen.cy < buffer.len() {
-                screen.cy += 1;
-            }
-        }
-        EditorKey::ArrowUp => {
-            if screen.cy > 0 {
-                screen.cy -= 1;
-            }
-        }
-        EditorKey::ArrowLeft => {
-            if screen.cx > 0 {
-                screen.cx -= 1;
-            } else if screen.cy > 0 {
-                if let Some(line) = buffer.get_line(screen.cy - 1) {
-                    screen.cy -= 1;
-                    screen.cx = line.len();
-                }
-            }
-        }
-        EditorKey::ArrowRight => {
-            if let Some(line) = current_line {
-                if screen.cx < line.len() {
-                    screen.cx += 1;
-                } else if screen.cx == line.len() {
-                    screen.cy += 1;
-                    screen.cx = 0;
-                }
-            }
-        }
-        EditorKey::PageUp => {
-            screen.cy = screen.offset_y;
-            for _ in 0..screen.height {
-                if screen.cy > 0 {
-                    screen.cy -= 1;
-                }
-            }
-        }
-        EditorKey::PageDown => {
-            screen.cy = screen.offset_y + screen.height - 1;
-            for _ in 0..screen.height {
-                if buffer.len() != 0 && screen.cy < buffer.len() {
-                    screen.cy += 1;
-                }
-            }
-        }
-        EditorKey::Home => {
-            screen.cx = 0;
-        }
-        EditorKey::End => {
-            if screen.cy < buffer.len() {
-                if let Some(line) = buffer.get_line(screen.cy) {
-                    screen.cx = line.len();
-                }
-            }
-        }
+        EditorKey::ArrowDown => screen.down(buffer),
+        EditorKey::ArrowUp => screen.up(buffer),
+        EditorKey::ArrowLeft => screen.left(buffer),
+        EditorKey::ArrowRight => screen.right(buffer),
+        EditorKey::PageUp => screen.page_up(buffer),
+        EditorKey::PageDown => screen.page_down(buffer),
+        EditorKey::Home => screen.home(buffer),
+        EditorKey::End => screen.end(buffer),
         EditorKey::Delete => {}
         EditorKey::OtherKey(c) => {
             print!("{}\r\n", c);
