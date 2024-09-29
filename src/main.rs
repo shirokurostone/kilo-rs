@@ -96,6 +96,34 @@ impl EditorScreen {
             }
         }
     }
+
+    fn adjust(&mut self, buffer: &EditorBuffer) {
+        self.rx = 0;
+
+        if let Some(line) = buffer.get_line(self.cy) {
+            if line.len() < self.cx {
+                self.cx = line.len();
+            }
+        }
+
+        if self.cy < buffer.len() {
+            self.rx = editor_cx_to_rx(self, buffer);
+        }
+
+        if self.rx < self.offset_x {
+            self.offset_x = self.rx;
+        }
+        if self.rx >= self.offset_x + self.width {
+            self.offset_x = self.rx - self.width + 1;
+        }
+
+        if self.cy < self.offset_y {
+            self.offset_y = self.cy;
+        }
+        if self.cy >= self.offset_y + self.height {
+            self.offset_y = self.cy - self.height + 1;
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -282,7 +310,7 @@ fn read_editor_key(reader: &mut dyn Read) -> Result<EditorKey, Error> {
 #[cfg(test)]
 mod tests {
     use super::{
-        editor_cx_to_rx, read_editor_key, scroll, EditorBuffer, EditorKey, EditorLine, EditorScreen,
+        editor_cx_to_rx, read_editor_key, EditorBuffer, EditorKey, EditorLine, EditorScreen,
     };
     use std::io::BufReader;
 
@@ -319,7 +347,7 @@ mod tests {
     }
 
     #[test]
-    fn test_scroll() {
+    fn test_adjust() {
         let mut buffer = EditorBuffer::new();
 
         for _ in 0..100 {
@@ -338,7 +366,7 @@ mod tests {
         screen.rx = 0;
         screen.offset_x = 0;
         screen.offset_y = 0;
-        scroll(&mut screen, &buffer);
+        screen.adjust(&buffer);
         assert_eq!(100, screen.cx);
         assert_eq!(100, screen.rx);
         assert_eq!(81, screen.offset_x);
@@ -348,7 +376,7 @@ mod tests {
         screen.rx = 0;
         screen.offset_x = 0;
         screen.offset_y = 0;
-        scroll(&mut screen, &buffer);
+        screen.adjust(&buffer);
         assert_eq!(10, screen.rx);
         assert_eq!(0, screen.offset_x);
 
@@ -357,7 +385,7 @@ mod tests {
         screen.rx = 0;
         screen.offset_x = 50;
         screen.offset_y = 0;
-        scroll(&mut screen, &buffer);
+        screen.adjust(&buffer);
         assert_eq!(10, screen.rx);
         assert_eq!(10, screen.offset_x);
 
@@ -366,7 +394,7 @@ mod tests {
         screen.rx = 0;
         screen.offset_x = 0;
         screen.offset_y = 0;
-        scroll(&mut screen, &buffer);
+        screen.adjust(&buffer);
         assert_eq!(50, screen.rx);
         assert_eq!(31, screen.offset_x);
 
@@ -375,7 +403,7 @@ mod tests {
         screen.rx = 0;
         screen.offset_x = 0;
         screen.offset_y = 50;
-        scroll(&mut screen, &buffer);
+        screen.adjust(&buffer);
         assert_eq!(10, screen.offset_y);
 
         screen.cx = 0;
@@ -383,7 +411,7 @@ mod tests {
         screen.rx = 0;
         screen.offset_x = 0;
         screen.offset_y = 0;
-        scroll(&mut screen, &buffer);
+        screen.adjust(&buffer);
         assert_eq!(31, screen.offset_y);
     }
 
@@ -459,7 +487,7 @@ fn process_key_press(
         }
     }
 
-    scroll(screen, buffer);
+    screen.adjust(buffer);
 
     Ok(())
 }
@@ -475,34 +503,6 @@ fn editor_cx_to_rx(screen: &EditorScreen, buffer: &EditorBuffer) -> usize {
         }
     }
     rx
-}
-
-fn scroll(screen: &mut EditorScreen, buffer: &EditorBuffer) {
-    screen.rx = 0;
-
-    if let Some(line) = buffer.get_line(screen.cy) {
-        if line.len() < screen.cx {
-            screen.cx = line.len();
-        }
-    }
-
-    if screen.cy < buffer.len() {
-        screen.rx = editor_cx_to_rx(screen, buffer);
-    }
-
-    if screen.rx < screen.offset_x {
-        screen.offset_x = screen.rx;
-    }
-    if screen.rx >= screen.offset_x + screen.width {
-        screen.offset_x = screen.rx - screen.width + 1;
-    }
-
-    if screen.cy < screen.offset_y {
-        screen.offset_y = screen.cy;
-    }
-    if screen.cy >= screen.offset_y + screen.height {
-        screen.offset_y = screen.cy - screen.height + 1;
-    }
 }
 
 fn refresh_screen(
