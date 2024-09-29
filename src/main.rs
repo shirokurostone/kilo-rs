@@ -15,7 +15,6 @@ struct EditorConfig {
     offset_y: usize,
     screen_width: usize,
     screen_height: usize,
-    filepath: Option<String>,
     buffer: EditorBuffer,
     message: String,
     message_time: SystemTime,
@@ -30,11 +29,15 @@ struct EditorLine {
 #[derive(Debug, PartialEq)]
 struct EditorBuffer {
     lines: Vec<EditorLine>,
+    filepath: Option<String>,
 }
 
 impl EditorBuffer {
     fn new() -> EditorBuffer {
-        EditorBuffer { lines: Vec::new() }
+        EditorBuffer {
+            lines: Vec::new(),
+            filepath: None,
+        }
     }
 
     fn len(&self) -> usize {
@@ -47,6 +50,10 @@ impl EditorBuffer {
 
     fn get_render(&self, num: usize) -> Option<String> {
         self.lines.get(num).map(|el| el.render.clone())
+    }
+
+    fn get_filepath(&self) -> Option<String> {
+        self.filepath.clone()
     }
 
     fn load_file(&mut self, path: String) -> Result<(), Error>{
@@ -62,6 +69,8 @@ impl EditorBuffer {
         }
 
         self.lines = lines;
+        self.filepath = Some(path.clone());
+
         Ok(())
     }
 }
@@ -84,7 +93,6 @@ fn init_editor() -> Result<EditorConfig, Error> {
         offset_y: 0,
         screen_width: size.0 as usize,
         screen_height: size.1 as usize - 2,
-        filepath: None,
         buffer: EditorBuffer::new(),
         message: "HELP: Ctrl+Q = quit".to_string(),
         message_time: SystemTime::now(),
@@ -112,12 +120,6 @@ fn convert_render(line: &str) -> String {
     }
 
     render
-}
-
-fn open_file(config: &mut EditorConfig, filepath: String) -> Result<(), Error> {
-    config.filepath = Some(filepath.clone());
-    config.buffer.load_file(filepath)?;
-    Ok(())
 }
 
 fn read_single_key(reader: &mut dyn Read) -> Result<char, Error> {
@@ -220,12 +222,12 @@ mod tests {
             offset_y: 0,
             screen_width: 0,
             screen_height: 0,
-            filepath: None,
             buffer: EditorBuffer {
                 lines: vec![EditorLine {
                     line: "123\t456".to_string(),
                     render: "123     456".to_string(),
                 }],
+                filepath: None,
             },
             message: "".to_string(),
             message_time: SystemTime::now(),
@@ -245,7 +247,6 @@ mod tests {
             offset_y: 0,
             screen_width: 20,
             screen_height: 20,
-            filepath: None,
             buffer: EditorBuffer::new(),
             message: "".to_string(),
             message_time: SystemTime::now(),
@@ -533,11 +534,7 @@ fn draw_statusbar(config: &EditorConfig, buf: &mut String) -> Result<(), Error> 
 
     let status = format!(
         "{:<20} - {} lines",
-        if let Some(filepath) = &config.filepath {
-            filepath
-        } else {
-            "[No Name]"
-        },
+        config.buffer.get_filepath().unwrap_or_else(|| "[No Name]".to_string()),
         config.screen_height,
     );
 
@@ -585,7 +582,7 @@ fn run(args: Vec<String>) -> Result<(), Error> {
     let mut config = init_editor()?;
 
     if args.len() > 1 {
-        open_file(&mut config, args.get(1).unwrap().to_string())?;
+        config.buffer.load_file(args.get(1).unwrap().to_string())?;
     }
 
     enable_raw_mode()?;
