@@ -25,6 +25,20 @@ struct EditorScreen {
     height: usize,
 }
 
+impl EditorScreen {
+    fn new() -> EditorScreen {
+        EditorScreen {
+            cx: 0,
+            cy: 0,
+            rx: 0,
+            offset_x: 0,
+            offset_y: 0,
+            width: 0,
+            height: 0,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq)]
 struct EditorLine {
     line: String,
@@ -113,16 +127,12 @@ fn main() {
 fn init_editor() -> Result<EditorConfig, Error> {
     let size = crossterm::terminal::size()?;
 
+    let mut screen = EditorScreen::new();
+    screen.width = size.0 as usize;
+    screen.height = size.1 as usize - 2;
+
     Ok(EditorConfig {
-        screen: EditorScreen {
-            cx: 0,
-            cy: 0,
-            rx: 0,
-            offset_x: 0,
-            offset_y: 0,
-            width: size.0 as usize,
-            height: size.1 as usize - 2,
-        },
+        screen,
         buffer: EditorBuffer::new(),
         message: "HELP: Ctrl+Q = quit".to_string(),
         message_time: SystemTime::now(),
@@ -198,11 +208,9 @@ fn read_editor_key(reader: &mut dyn Read) -> Result<EditorKey, Error> {
 #[cfg(test)]
 mod tests {
     use super::{
-        editor_cx_to_rx, read_editor_key, scroll, EditorBuffer, EditorConfig, EditorKey,
-        EditorLine, EditorScreen,
+        editor_cx_to_rx, read_editor_key, scroll, EditorBuffer, EditorKey, EditorLine, EditorScreen,
     };
     use std::io::BufReader;
-    use std::time::SystemTime;
 
     #[test]
     fn test_convert_render() {
@@ -223,28 +231,16 @@ mod tests {
 
     #[test]
     fn test_editor_cx_to_rx() {
-        let config = EditorConfig {
-            screen: EditorScreen {
-                cx: 4,
-                cy: 0,
-                rx: 0,
-                offset_x: 0,
-                offset_y: 0,
-                width: 0,
-                height: 0,
-            },
-            buffer: EditorBuffer {
-                lines: vec![EditorLine {
-                    line: "123\t456".to_string(),
-                    render: "123     456".to_string(),
-                }],
-                filepath: None,
-            },
-            message: "".to_string(),
-            message_time: SystemTime::now(),
-        };
+        let mut screen = EditorScreen::new();
+        screen.cx = 4;
 
-        let rx = editor_cx_to_rx(&config.screen, &config.buffer);
+        let mut buffer = EditorBuffer::new();
+        buffer.lines.push(EditorLine {
+            line: "123\t456".to_string(),
+            render: "123     456".to_string(),
+        });
+
+        let rx = editor_cx_to_rx(&screen, &buffer);
         assert_eq!(8, rx);
     }
 
@@ -259,15 +255,9 @@ mod tests {
             })
         }
 
-        let mut screen = EditorScreen {
-            cx: 0,
-            cy: 0,
-            rx: 0,
-            offset_x: 0,
-            offset_y: 0,
-            width: 20,
-            height: 20,
-        };
+        let mut screen = EditorScreen::new();
+        screen.width = 20;
+        screen.height = 20;
 
         screen.cx = 200;
         screen.cy = 0;
