@@ -269,6 +269,16 @@ mod tests {
             height: 20,
         };
 
+        screen.cx = 200;
+        screen.cy = 0;
+        screen.rx = 0;
+        screen.offset_x = 0;
+        screen.offset_y = 0;
+        scroll(&mut screen, &buffer);
+        assert_eq!(100, screen.cx);
+        assert_eq!(100, screen.rx);
+        assert_eq!(81, screen.offset_x);
+
         screen.cx = 10;
         screen.cy = 0;
         screen.rx = 0;
@@ -435,12 +445,7 @@ fn process_key_press(
         }
     }
 
-    let new_line = buffer.get_line(screen.cy);
-    if let Some(line) = new_line {
-        if line.len() < screen.cx {
-            screen.cx = line.len();
-        }
-    }
+    scroll(screen, buffer);
 
     Ok(())
 }
@@ -460,6 +465,12 @@ fn editor_cx_to_rx(screen: &EditorScreen, buffer: &EditorBuffer) -> usize {
 
 fn scroll(screen: &mut EditorScreen, buffer: &EditorBuffer) {
     screen.rx = 0;
+
+    if let Some(line) = buffer.get_line(screen.cy) {
+        if line.len() < screen.cx {
+            screen.cx = line.len();
+        }
+    }
 
     if screen.cy < buffer.len() {
         screen.rx = editor_cx_to_rx(screen, buffer);
@@ -482,8 +493,6 @@ fn scroll(screen: &mut EditorScreen, buffer: &EditorBuffer) {
 
 fn refresh_screen(config: &mut EditorConfig) -> Result<(), Error> {
     let mut buf = String::new();
-
-    scroll(&mut config.screen, &config.buffer);
 
     buf.push_str("\x1b[?25l");
     buf.push_str("\x1b[H");
