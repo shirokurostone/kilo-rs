@@ -56,7 +56,7 @@ impl EditorBuffer {
         self.filepath.clone()
     }
 
-    fn load_file(&mut self, path: String) -> Result<(), Error>{
+    fn load_file(&mut self, path: String) -> Result<(), Error> {
         let mut lines: Vec<EditorLine> = Vec::new();
 
         let file = File::open(&path)?;
@@ -64,7 +64,7 @@ impl EditorBuffer {
         for ret in file_reader.lines() {
             let line = ret?;
 
-            let render = convert_render(&line);
+            let render = self.convert_render(&line);
             lines.push(EditorLine { line, render });
         }
 
@@ -72,6 +72,29 @@ impl EditorBuffer {
         self.filepath = Some(path.clone());
 
         Ok(())
+    }
+
+    fn convert_render(&self, line: &str) -> String {
+        let mut render = String::new();
+        let mut i = 0;
+        for c in line.chars() {
+            match c {
+                '\t' => {
+                    render.push(' ');
+                    i += 1;
+                    while i % TAB_STOP != 0 {
+                        render.push(' ');
+                        i += 1;
+                    }
+                }
+                c => {
+                    render.push(c);
+                }
+            }
+            i += 1;
+        }
+
+        render
     }
 }
 fn main() {
@@ -97,29 +120,6 @@ fn init_editor() -> Result<EditorConfig, Error> {
         message: "HELP: Ctrl+Q = quit".to_string(),
         message_time: SystemTime::now(),
     })
-}
-
-fn convert_render(line: &str) -> String {
-    let mut render = String::new();
-    let mut i = 0;
-    for c in line.chars() {
-        match c {
-            '\t' => {
-                render.push(' ');
-                i += 1;
-                while i % TAB_STOP != 0 {
-                    render.push(' ');
-                    i += 1;
-                }
-            }
-            c => {
-                render.push(c);
-            }
-        }
-        i += 1;
-    }
-
-    render
 }
 
 fn read_single_key(reader: &mut dyn Read) -> Result<char, Error> {
@@ -191,25 +191,26 @@ fn read_editor_key(reader: &mut dyn Read) -> Result<EditorKey, Error> {
 #[cfg(test)]
 mod tests {
     use super::{
-        convert_render, editor_cx_to_rx, read_editor_key, scroll, EditorBuffer, EditorConfig,
-        EditorKey, EditorLine,
+        editor_cx_to_rx, read_editor_key, scroll, EditorBuffer, EditorConfig, EditorKey, EditorLine,
     };
     use std::io::BufReader;
     use std::time::SystemTime;
 
     #[test]
     fn test_convert_render() {
-        assert_eq!("hoge", convert_render("hoge"));
+        let buffer = EditorBuffer::new();
 
-        assert_eq!("        ", convert_render("\t"));
-        assert_eq!("1       ", convert_render("1\t"));
-        assert_eq!("12      ", convert_render("12\t"));
-        assert_eq!("123     ", convert_render("123\t"));
-        assert_eq!("1234    ", convert_render("1234\t"));
-        assert_eq!("12345   ", convert_render("12345\t"));
-        assert_eq!("123456  ", convert_render("123456\t"));
-        assert_eq!("1234567 ", convert_render("1234567\t"));
-        assert_eq!("12345678        ", convert_render("12345678\t"));
+        assert_eq!("hoge", buffer.convert_render("hoge"));
+
+        assert_eq!("        ", buffer.convert_render("\t"));
+        assert_eq!("1       ", buffer.convert_render("1\t"));
+        assert_eq!("12      ", buffer.convert_render("12\t"));
+        assert_eq!("123     ", buffer.convert_render("123\t"));
+        assert_eq!("1234    ", buffer.convert_render("1234\t"));
+        assert_eq!("12345   ", buffer.convert_render("12345\t"));
+        assert_eq!("123456  ", buffer.convert_render("123456\t"));
+        assert_eq!("1234567 ", buffer.convert_render("1234567\t"));
+        assert_eq!("12345678        ", buffer.convert_render("12345678\t"));
     }
 
     #[test]
@@ -534,7 +535,10 @@ fn draw_statusbar(config: &EditorConfig, buf: &mut String) -> Result<(), Error> 
 
     let status = format!(
         "{:<20} - {} lines",
-        config.buffer.get_filepath().unwrap_or_else(|| "[No Name]".to_string()),
+        config
+            .buffer
+            .get_filepath()
+            .unwrap_or_else(|| "[No Name]".to_string()),
         config.screen_height,
     );
 
