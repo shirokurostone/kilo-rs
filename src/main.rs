@@ -328,10 +328,10 @@ enum EditorKey {
     OtherKey(char),
 }
 
-fn process_key_press(config: &mut EditorConfig, reader: &mut dyn Read) -> Result<(), Error> {
+fn process_key_press(config: &mut EditorConfig, editor_key: EditorKey) -> Result<(), Error> {
     let current_line = config.buffer.lines.get(config.cy);
 
-    match read_editor_key(reader)? {
+    match editor_key {
         EditorKey::Exit => {
             // ctrl+q
             return Err(Error::other("exit"));
@@ -571,7 +571,7 @@ fn run(args: Vec<String>) -> Result<(), Error> {
 
     loop {
         refresh_screen(&mut config)?;
-        match process_key_press(&mut config, &mut stdin) {
+        match process_key_press(&mut config, read_editor_key(&mut stdin)?) {
             Err(_) => break,
             Ok(_) => continue,
         }
