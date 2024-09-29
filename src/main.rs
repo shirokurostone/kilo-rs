@@ -8,16 +8,21 @@ const TAB_STOP: usize = 8;
 
 #[derive(Debug, PartialEq)]
 struct EditorConfig {
+    screen: EditorScreen,
+    buffer: EditorBuffer,
+    message: String,
+    message_time: SystemTime,
+}
+
+#[derive(Debug, PartialEq)]
+struct EditorScreen {
     cx: usize,
     cy: usize,
     rx: usize,
     offset_x: usize,
     offset_y: usize,
-    screen_width: usize,
-    screen_height: usize,
-    buffer: EditorBuffer,
-    message: String,
-    message_time: SystemTime,
+    width: usize,
+    height: usize,
 }
 
 #[derive(Debug, PartialEq)]
@@ -109,13 +114,15 @@ fn init_editor() -> Result<EditorConfig, Error> {
     let size = crossterm::terminal::size()?;
 
     Ok(EditorConfig {
-        cx: 0,
-        cy: 0,
-        rx: 0,
-        offset_x: 0,
-        offset_y: 0,
-        screen_width: size.0 as usize,
-        screen_height: size.1 as usize - 2,
+        screen: EditorScreen {
+            cx: 0,
+            cy: 0,
+            rx: 0,
+            offset_x: 0,
+            offset_y: 0,
+            width: size.0 as usize,
+            height: size.1 as usize - 2,
+        },
         buffer: EditorBuffer::new(),
         message: "HELP: Ctrl+Q = quit".to_string(),
         message_time: SystemTime::now(),
@@ -191,7 +198,8 @@ fn read_editor_key(reader: &mut dyn Read) -> Result<EditorKey, Error> {
 #[cfg(test)]
 mod tests {
     use super::{
-        editor_cx_to_rx, read_editor_key, scroll, EditorBuffer, EditorConfig, EditorKey, EditorLine,
+        editor_cx_to_rx, read_editor_key, scroll, EditorBuffer, EditorConfig, EditorKey,
+        EditorLine, EditorScreen,
     };
     use std::io::BufReader;
     use std::time::SystemTime;
@@ -216,13 +224,15 @@ mod tests {
     #[test]
     fn test_editor_cx_to_rx() {
         let config = EditorConfig {
-            cx: 4,
-            cy: 0,
-            rx: 0,
-            offset_x: 0,
-            offset_y: 0,
-            screen_width: 0,
-            screen_height: 0,
+            screen: EditorScreen {
+                cx: 4,
+                cy: 0,
+                rx: 0,
+                offset_x: 0,
+                offset_y: 0,
+                width: 0,
+                height: 0,
+            },
             buffer: EditorBuffer {
                 lines: vec![EditorLine {
                     line: "123\t456".to_string(),
@@ -241,13 +251,15 @@ mod tests {
     #[test]
     fn test_scroll() {
         let mut config = EditorConfig {
-            cx: 0,
-            cy: 0,
-            rx: 0,
-            offset_x: 0,
-            offset_y: 0,
-            screen_width: 20,
-            screen_height: 20,
+            screen: EditorScreen {
+                cx: 0,
+                cy: 0,
+                rx: 0,
+                offset_x: 0,
+                offset_y: 0,
+                width: 20,
+                height: 20,
+            },
             buffer: EditorBuffer::new(),
             message: "".to_string(),
             message_time: SystemTime::now(),
@@ -260,48 +272,48 @@ mod tests {
             })
         }
 
-        config.cx = 10;
-        config.cy = 0;
-        config.rx = 0;
-        config.offset_x = 0;
-        config.offset_y = 0;
+        config.screen.cx = 10;
+        config.screen.cy = 0;
+        config.screen.rx = 0;
+        config.screen.offset_x = 0;
+        config.screen.offset_y = 0;
         scroll(&mut config);
-        assert_eq!(10, config.rx);
-        assert_eq!(0, config.offset_x);
+        assert_eq!(10, config.screen.rx);
+        assert_eq!(0, config.screen.offset_x);
 
-        config.cx = 10;
-        config.cy = 0;
-        config.rx = 0;
-        config.offset_x = 50;
-        config.offset_y = 0;
+        config.screen.cx = 10;
+        config.screen.cy = 0;
+        config.screen.rx = 0;
+        config.screen.offset_x = 50;
+        config.screen.offset_y = 0;
         scroll(&mut config);
-        assert_eq!(10, config.rx);
-        assert_eq!(10, config.offset_x);
+        assert_eq!(10, config.screen.rx);
+        assert_eq!(10, config.screen.offset_x);
 
-        config.cx = 50;
-        config.cy = 0;
-        config.rx = 0;
-        config.offset_x = 0;
-        config.offset_y = 0;
+        config.screen.cx = 50;
+        config.screen.cy = 0;
+        config.screen.rx = 0;
+        config.screen.offset_x = 0;
+        config.screen.offset_y = 0;
         scroll(&mut config);
-        assert_eq!(50, config.rx);
-        assert_eq!(31, config.offset_x);
+        assert_eq!(50, config.screen.rx);
+        assert_eq!(31, config.screen.offset_x);
 
-        config.cx = 0;
-        config.cy = 10;
-        config.rx = 0;
-        config.offset_x = 0;
-        config.offset_y = 50;
+        config.screen.cx = 0;
+        config.screen.cy = 10;
+        config.screen.rx = 0;
+        config.screen.offset_x = 0;
+        config.screen.offset_y = 50;
         scroll(&mut config);
-        assert_eq!(10, config.offset_y);
+        assert_eq!(10, config.screen.offset_y);
 
-        config.cx = 0;
-        config.cy = 50;
-        config.rx = 0;
-        config.offset_x = 0;
-        config.offset_y = 0;
+        config.screen.cx = 0;
+        config.screen.cy = 50;
+        config.screen.rx = 0;
+        config.screen.offset_x = 0;
+        config.screen.offset_y = 0;
         scroll(&mut config);
-        assert_eq!(31, config.offset_y);
+        assert_eq!(31, config.screen.offset_y);
     }
 
     #[test]
@@ -353,7 +365,7 @@ enum EditorKey {
 }
 
 fn process_key_press(config: &mut EditorConfig, editor_key: EditorKey) -> Result<(), Error> {
-    let current_line = config.buffer.get_line(config.cy);
+    let current_line = config.buffer.get_line(config.screen.cy);
 
     match editor_key {
         EditorKey::Exit => {
@@ -361,58 +373,58 @@ fn process_key_press(config: &mut EditorConfig, editor_key: EditorKey) -> Result
             return Err(Error::other("exit"));
         }
         EditorKey::ArrowDown => {
-            if config.buffer.len() != 0 && config.cy < config.buffer.len() {
-                config.cy += 1;
+            if config.buffer.len() != 0 && config.screen.cy < config.buffer.len() {
+                config.screen.cy += 1;
             }
         }
         EditorKey::ArrowUp => {
-            if config.cy > 0 {
-                config.cy -= 1;
+            if config.screen.cy > 0 {
+                config.screen.cy -= 1;
             }
         }
         EditorKey::ArrowLeft => {
-            if config.cx > 0 {
-                config.cx -= 1;
-            } else if config.cy > 0 {
-                if let Some(line) = config.buffer.get_line(config.cy - 1) {
-                    config.cy -= 1;
-                    config.cx = line.len();
+            if config.screen.cx > 0 {
+                config.screen.cx -= 1;
+            } else if config.screen.cy > 0 {
+                if let Some(line) = config.buffer.get_line(config.screen.cy - 1) {
+                    config.screen.cy -= 1;
+                    config.screen.cx = line.len();
                 }
             }
         }
         EditorKey::ArrowRight => {
             if let Some(line) = current_line {
-                if config.cx < line.len() {
-                    config.cx += 1;
-                } else if config.cx == line.len() {
-                    config.cy += 1;
-                    config.cx = 0;
+                if config.screen.cx < line.len() {
+                    config.screen.cx += 1;
+                } else if config.screen.cx == line.len() {
+                    config.screen.cy += 1;
+                    config.screen.cx = 0;
                 }
             }
         }
         EditorKey::PageUp => {
-            config.cy = config.offset_y;
-            for _ in 0..config.screen_height {
-                if config.cy > 0 {
-                    config.cy -= 1;
+            config.screen.cy = config.screen.offset_y;
+            for _ in 0..config.screen.height {
+                if config.screen.cy > 0 {
+                    config.screen.cy -= 1;
                 }
             }
         }
         EditorKey::PageDown => {
-            config.cy = config.offset_y + config.screen_height - 1;
-            for _ in 0..config.screen_height {
-                if config.buffer.len() != 0 && config.cy < config.buffer.len() {
-                    config.cy += 1;
+            config.screen.cy = config.screen.offset_y + config.screen.height - 1;
+            for _ in 0..config.screen.height {
+                if config.buffer.len() != 0 && config.screen.cy < config.buffer.len() {
+                    config.screen.cy += 1;
                 }
             }
         }
         EditorKey::Home => {
-            config.cx = 0;
+            config.screen.cx = 0;
         }
         EditorKey::End => {
-            if config.cy < config.buffer.len() {
-                if let Some(line) = config.buffer.get_line(config.cy) {
-                    config.cx = line.len();
+            if config.screen.cy < config.buffer.len() {
+                if let Some(line) = config.buffer.get_line(config.screen.cy) {
+                    config.screen.cx = line.len();
                 }
             }
         }
@@ -422,10 +434,10 @@ fn process_key_press(config: &mut EditorConfig, editor_key: EditorKey) -> Result
         }
     }
 
-    let new_line = config.buffer.get_line(config.cy);
+    let new_line = config.buffer.get_line(config.screen.cy);
     if let Some(line) = new_line {
-        if line.len() < config.cx {
-            config.cx = line.len();
+        if line.len() < config.screen.cx {
+            config.screen.cx = line.len();
         }
     }
 
@@ -434,8 +446,8 @@ fn process_key_press(config: &mut EditorConfig, editor_key: EditorKey) -> Result
 
 fn editor_cx_to_rx(config: &EditorConfig) -> usize {
     let mut rx = 0;
-    if let Some(line) = config.buffer.get_line(config.cy) {
-        for c in line.chars().take(config.cx) {
+    if let Some(line) = config.buffer.get_line(config.screen.cy) {
+        for c in line.chars().take(config.screen.cx) {
             if c == '\t' {
                 rx += (TAB_STOP - 1) - (rx % TAB_STOP);
             }
@@ -446,24 +458,24 @@ fn editor_cx_to_rx(config: &EditorConfig) -> usize {
 }
 
 fn scroll(config: &mut EditorConfig) {
-    config.rx = 0;
+    config.screen.rx = 0;
 
-    if config.cy < config.buffer.len() {
-        config.rx = editor_cx_to_rx(config)
-    }
-
-    if config.rx < config.offset_x {
-        config.offset_x = config.rx;
-    }
-    if config.rx >= config.offset_x + config.screen_width {
-        config.offset_x = config.rx - config.screen_width + 1;
+    if config.screen.cy < config.buffer.len() {
+        config.screen.rx = editor_cx_to_rx(config)
     }
 
-    if config.cy < config.offset_y {
-        config.offset_y = config.cy;
+    if config.screen.rx < config.screen.offset_x {
+        config.screen.offset_x = config.screen.rx;
     }
-    if config.cy >= config.offset_y + config.screen_height {
-        config.offset_y = config.cy - config.screen_height + 1;
+    if config.screen.rx >= config.screen.offset_x + config.screen.width {
+        config.screen.offset_x = config.screen.rx - config.screen.width + 1;
+    }
+
+    if config.screen.cy < config.screen.offset_y {
+        config.screen.offset_y = config.screen.cy;
+    }
+    if config.screen.cy >= config.screen.offset_y + config.screen.height {
+        config.screen.offset_y = config.screen.cy - config.screen.height + 1;
     }
 }
 
@@ -481,8 +493,8 @@ fn refresh_screen(config: &mut EditorConfig) -> Result<(), Error> {
 
     let cursor = format!(
         "\x1b[{};{}H",
-        (config.cy - config.offset_y) + 1,
-        (config.rx - config.offset_x) + 1
+        (config.screen.cy - config.screen.offset_y) + 1,
+        (config.screen.rx - config.screen.offset_x) + 1
     );
     buf.push_str(&cursor);
 
@@ -495,22 +507,22 @@ fn refresh_screen(config: &mut EditorConfig) -> Result<(), Error> {
 }
 
 fn draw_rows(config: &EditorConfig, buf: &mut String) -> Result<(), Error> {
-    for i in 0..config.screen_height {
-        let file_line_no = i + config.offset_y;
+    for i in 0..config.screen.height {
+        let file_line_no = i + config.screen.offset_y;
 
         if file_line_no < config.buffer.len() {
             if let Some(render) = config.buffer.get_render(file_line_no) {
                 let l: String = render
                     .chars()
-                    .skip(config.offset_x)
-                    .take(config.screen_width)
+                    .skip(config.screen.offset_x)
+                    .take(config.screen.width)
                     .collect();
                 buf.push_str(&l);
             }
-        } else if config.buffer.len() == 0 && i == config.screen_height / 3 {
+        } else if config.buffer.len() == 0 && i == config.screen.height / 3 {
             let title = format!("kilo-rs -- version {}", KILO_VERSION);
-            let t: String = title.chars().take(config.screen_width).collect();
-            let mut padding = (config.screen_width - t.len()) / 2;
+            let t: String = title.chars().take(config.screen.width).collect();
+            let mut padding = (config.screen.width - t.len()) / 2;
             if padding > 0 {
                 buf.push('~');
                 padding -= 1;
@@ -539,23 +551,23 @@ fn draw_statusbar(config: &EditorConfig, buf: &mut String) -> Result<(), Error> 
             .buffer
             .get_filepath()
             .unwrap_or_else(|| "[No Name]".to_string()),
-        config.screen_height,
+        config.screen.height,
     );
 
-    if config.screen_width < status.len() {
-        let s: String = status.chars().take(config.screen_width).collect();
+    if config.screen.width < status.len() {
+        let s: String = status.chars().take(config.screen.width).collect();
         buf.push_str(&s);
     } else {
         buf.push_str(&status);
 
-        let right_status = format!("{}/{}", config.cy + 1, config.buffer.len());
-        if config.screen_width as isize - status.len() as isize - right_status.len() as isize > 0 {
-            for _ in 0..(config.screen_width - status.len() - right_status.len()) {
+        let right_status = format!("{}/{}", config.screen.cy + 1, config.buffer.len());
+        if config.screen.width as isize - status.len() as isize - right_status.len() as isize > 0 {
+            for _ in 0..(config.screen.width - status.len() - right_status.len()) {
                 buf.push(' ');
             }
             buf.push_str(&right_status);
         } else {
-            for _ in 0..(config.screen_width - status.len()) {
+            for _ in 0..(config.screen.width - status.len()) {
                 buf.push(' ');
             }
         }
