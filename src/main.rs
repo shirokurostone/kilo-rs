@@ -10,8 +10,7 @@ const TAB_STOP: usize = 8;
 struct EditorConfig {
     screen: EditorScreen,
     buffer: EditorBuffer,
-    message: String,
-    message_time: SystemTime,
+    message_bar: MessageBar,
 }
 
 #[derive(Debug, PartialEq)]
@@ -116,6 +115,22 @@ impl EditorBuffer {
         render
     }
 }
+
+#[derive(Debug, PartialEq)]
+struct MessageBar {
+    message: String,
+    updated_at: SystemTime,
+}
+
+impl MessageBar {
+    fn new(message: String, time: SystemTime) -> MessageBar {
+        MessageBar {
+            message,
+            updated_at: time,
+        }
+    }
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
 
@@ -134,8 +149,7 @@ fn init_editor() -> Result<EditorConfig, Error> {
     Ok(EditorConfig {
         screen,
         buffer: EditorBuffer::new(),
-        message: "HELP: Ctrl+Q = quit".to_string(),
-        message_time: SystemTime::now(),
+        message_bar: MessageBar::new("HELP: Ctrl+Q = quit".to_string(), SystemTime::now()),
     })
 }
 
@@ -489,7 +503,7 @@ fn refresh_screen(config: &mut EditorConfig) -> Result<(), Error> {
 
     draw_rows(&config.screen, &config.buffer, &mut buf)?;
     draw_statusbar(&config.screen, &config.buffer, &mut buf)?;
-    draw_messagebar(config, &mut buf)?;
+    draw_messagebar(&config.message_bar, &mut buf)?;
 
     let cursor = format!(
         "\x1b[{};{}H",
@@ -582,14 +596,14 @@ fn draw_statusbar(
     Ok(())
 }
 
-fn draw_messagebar(config: &EditorConfig, buf: &mut String) -> Result<(), Error> {
+fn draw_messagebar(message_bar: &MessageBar, buf: &mut String) -> Result<(), Error> {
     buf.push_str("\x1b[K");
 
     let now = SystemTime::now();
 
-    if let Ok(t) = now.duration_since(config.message_time) {
+    if let Ok(t) = now.duration_since(message_bar.updated_at) {
         if t.as_secs() < 5 {
-            buf.push_str(&config.message);
+            buf.push_str(&message_bar.message);
         }
     }
 
