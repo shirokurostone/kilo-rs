@@ -32,6 +32,39 @@ struct EditorBuffer {
     lines: Vec<EditorLine>,
 }
 
+impl EditorBuffer {
+    fn new() -> EditorBuffer {
+        EditorBuffer { lines: Vec::new() }
+    }
+
+    fn len(&self) -> usize {
+        self.lines.len()
+    }
+
+    fn get_line(&self, num: usize) -> Option<String> {
+        self.lines.get(num).map(|el| el.line.clone())
+    }
+
+    fn get_render(&self, num: usize) -> Option<String> {
+        self.lines.get(num).map(|el| el.render.clone())
+    }
+
+    fn load_file(&mut self, path: String) -> Result<(), Error>{
+        let mut lines: Vec<EditorLine> = Vec::new();
+
+        let file = File::open(&path)?;
+        let file_reader = BufReader::new(file);
+        for ret in file_reader.lines() {
+            let line = ret?;
+
+            let render = convert_render(&line);
+            lines.push(EditorLine { line, render });
+        }
+
+        self.lines = lines;
+        Ok(())
+    }
+}
 fn main() {
     let args: Vec<String> = std::env::args().collect();
 
@@ -52,7 +85,7 @@ fn init_editor() -> Result<EditorConfig, Error> {
         screen_width: size.0 as usize,
         screen_height: size.1 as usize - 2,
         filepath: None,
-        buffer: EditorBuffer { lines: Vec::new() },
+        buffer: EditorBuffer::new(),
         message: "HELP: Ctrl+Q = quit".to_string(),
         message_time: SystemTime::now(),
     })
@@ -82,19 +115,8 @@ fn convert_render(line: &str) -> String {
 }
 
 fn open_file(config: &mut EditorConfig, filepath: String) -> Result<(), Error> {
-    let mut lines: Vec<EditorLine> = Vec::new();
-
-    let file = File::open(&filepath)?;
-    let file_reader = BufReader::new(file);
-    for ret in file_reader.lines() {
-        let line = ret?;
-
-        let render = convert_render(&line);
-        lines.push(EditorLine { line, render });
-    }
-
-    config.buffer.lines = lines;
     config.filepath = Some(filepath.clone());
+    config.buffer.load_file(filepath)?;
     Ok(())
 }
 
@@ -224,7 +246,7 @@ mod tests {
             screen_width: 20,
             screen_height: 20,
             filepath: None,
-            buffer: EditorBuffer { lines: vec![] },
+            buffer: EditorBuffer::new(),
             message: "".to_string(),
             message_time: SystemTime::now(),
         };
@@ -329,7 +351,7 @@ enum EditorKey {
 }
 
 fn process_key_press(config: &mut EditorConfig, editor_key: EditorKey) -> Result<(), Error> {
-    let current_line = config.buffer.lines.get(config.cy);
+    let current_line = config.buffer.get_line(config.cy);
 
     match editor_key {
         EditorKey::Exit => {
@@ -337,7 +359,7 @@ fn process_key_press(config: &mut EditorConfig, editor_key: EditorKey) -> Result
             return Err(Error::other("exit"));
         }
         EditorKey::ArrowDown => {
-            if !config.buffer.lines.is_empty() && config.cy < config.buffer.lines.len() {
+            if config.buffer.len() != 0 && config.cy < config.buffer.len() {
                 config.cy += 1;
             }
         }
@@ -350,17 +372,17 @@ fn process_key_press(config: &mut EditorConfig, editor_key: EditorKey) -> Result
             if config.cx > 0 {
                 config.cx -= 1;
             } else if config.cy > 0 {
-                if let Some(el) = config.buffer.lines.get(config.cy - 1) {
+                if let Some(line) = config.buffer.get_line(config.cy - 1) {
                     config.cy -= 1;
-                    config.cx = el.line.len();
+                    config.cx = line.len();
                 }
             }
         }
         EditorKey::ArrowRight => {
-            if let Some(el) = current_line {
-                if config.cx < el.line.len() {
+            if let Some(line) = current_line {
+                if config.cx < line.len() {
                     config.cx += 1;
-                } else if config.cx == el.line.len() {
+                } else if config.cx == line.len() {
                     config.cy += 1;
                     config.cx = 0;
                 }
@@ -377,7 +399,7 @@ fn process_key_press(config: &mut EditorConfig, editor_key: EditorKey) -> Result
         EditorKey::PageDown => {
             config.cy = config.offset_y + config.screen_height - 1;
             for _ in 0..config.screen_height {
-                if !config.buffer.lines.is_empty() && config.cy < config.buffer.lines.len() {
+                if config.buffer.len() != 0 && config.cy < config.buffer.len() {
                     config.cy += 1;
                 }
             }
@@ -386,9 +408,9 @@ fn process_key_press(config: &mut EditorConfig, editor_key: EditorKey) -> Result
             config.cx = 0;
         }
         EditorKey::End => {
-            if config.cy < config.buffer.lines.len() {
-                if let Some(el) = config.buffer.lines.get(config.cy) {
-                    config.cx = el.line.len();
+            if config.cy < config.buffer.len() {
+                if let Some(line) = config.buffer.get_line(config.cy) {
+                    config.cx = line.len();
                 }
             }
         }
@@ -398,10 +420,10 @@ fn process_key_press(config: &mut EditorConfig, editor_key: EditorKey) -> Result
         }
     }
 
-    let new_line = config.buffer.lines.get(config.cy);
-    if let Some(el) = new_line {
-        if el.line.len() < config.cx {
-            config.cx = el.line.len();
+    let new_line = config.buffer.get_line(config.cy);
+    if let Some(line) = new_line {
+        if line.len() < config.cx {
+            config.cx = line.len();
         }
     }
 
@@ -410,8 +432,8 @@ fn process_key_press(config: &mut EditorConfig, editor_key: EditorKey) -> Result
 
 fn editor_cx_to_rx(config: &EditorConfig) -> usize {
     let mut rx = 0;
-    if let Some(el) = config.buffer.lines.get(config.cy) {
-        for c in el.line.chars().take(config.cx) {
+    if let Some(line) = config.buffer.get_line(config.cy) {
+        for c in line.chars().take(config.cx) {
             if c == '\t' {
                 rx += (TAB_STOP - 1) - (rx % TAB_STOP);
             }
@@ -424,7 +446,7 @@ fn editor_cx_to_rx(config: &EditorConfig) -> usize {
 fn scroll(config: &mut EditorConfig) {
     config.rx = 0;
 
-    if config.cy < config.buffer.lines.len() {
+    if config.cy < config.buffer.len() {
         config.rx = editor_cx_to_rx(config)
     }
 
@@ -474,17 +496,16 @@ fn draw_rows(config: &EditorConfig, buf: &mut String) -> Result<(), Error> {
     for i in 0..config.screen_height {
         let file_line_no = i + config.offset_y;
 
-        if file_line_no < config.buffer.lines.len() {
-            if let Some(el) = config.buffer.lines.get(file_line_no) {
-                let l: String = el
-                    .render
+        if file_line_no < config.buffer.len() {
+            if let Some(render) = config.buffer.get_render(file_line_no) {
+                let l: String = render
                     .chars()
                     .skip(config.offset_x)
                     .take(config.screen_width)
                     .collect();
                 buf.push_str(&l);
             }
-        } else if config.buffer.lines.is_empty() && i == config.screen_height / 3 {
+        } else if config.buffer.len() == 0 && i == config.screen_height / 3 {
             let title = format!("kilo-rs -- version {}", KILO_VERSION);
             let t: String = title.chars().take(config.screen_width).collect();
             let mut padding = (config.screen_width - t.len()) / 2;
@@ -526,7 +547,7 @@ fn draw_statusbar(config: &EditorConfig, buf: &mut String) -> Result<(), Error> 
     } else {
         buf.push_str(&status);
 
-        let right_status = format!("{}/{}", config.cy + 1, config.buffer.lines.len());
+        let right_status = format!("{}/{}", config.cy + 1, config.buffer.len());
         if config.screen_width as isize - status.len() as isize - right_status.len() as isize > 0 {
             for _ in 0..(config.screen_width - status.len() - right_status.len()) {
                 buf.push(' ');
