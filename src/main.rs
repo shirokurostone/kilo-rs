@@ -107,7 +107,7 @@ impl EditorScreen {
         }
 
         if self.cy < buffer.len() {
-            self.rx = editor_cx_to_rx(self, buffer);
+            self.rx = self.cx_to_rx(buffer);
         }
 
         if self.rx < self.offset_x {
@@ -123,6 +123,19 @@ impl EditorScreen {
         if self.cy >= self.offset_y + self.height {
             self.offset_y = self.cy - self.height + 1;
         }
+    }
+
+    fn cx_to_rx(&self, buffer: &EditorBuffer) -> usize {
+        let mut rx = 0;
+        if let Some(line) = buffer.get_line(self.cy) {
+            for c in line.chars().take(self.cx) {
+                if c == '\t' {
+                    rx += (TAB_STOP - 1) - (rx % TAB_STOP);
+                }
+                rx += 1;
+            }
+        }
+        rx
     }
 }
 
@@ -309,9 +322,7 @@ fn read_editor_key(reader: &mut dyn Read) -> Result<EditorKey, Error> {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        editor_cx_to_rx, read_editor_key, EditorBuffer, EditorKey, EditorLine, EditorScreen,
-    };
+    use super::{read_editor_key, EditorBuffer, EditorKey, EditorLine, EditorScreen};
     use std::io::BufReader;
 
     #[test]
@@ -332,7 +343,7 @@ mod tests {
     }
 
     #[test]
-    fn test_editor_cx_to_rx() {
+    fn test_cx_to_rx() {
         let mut screen = EditorScreen::new();
         screen.cx = 4;
 
@@ -342,7 +353,7 @@ mod tests {
             render: "123     456".to_string(),
         });
 
-        let rx = editor_cx_to_rx(&screen, &buffer);
+        let rx = screen.cx_to_rx(&buffer);
         assert_eq!(8, rx);
     }
 
@@ -490,19 +501,6 @@ fn process_key_press(
     screen.adjust(buffer);
 
     Ok(())
-}
-
-fn editor_cx_to_rx(screen: &EditorScreen, buffer: &EditorBuffer) -> usize {
-    let mut rx = 0;
-    if let Some(line) = buffer.get_line(screen.cy) {
-        for c in line.chars().take(screen.cx) {
-            if c == '\t' {
-                rx += (TAB_STOP - 1) - (rx % TAB_STOP);
-            }
-            rx += 1;
-        }
-    }
-    rx
 }
 
 fn refresh_screen(
