@@ -404,7 +404,7 @@ fn draw_statusbar(config: &EditorConfig, buf: &mut String) -> Result<(), Error> 
         if let Some(filepath) = &config.filepath {
             filepath
         } else {
-            "[No NAme]"
+            "[No Name]"
         },
         config.screen_height,
     );
