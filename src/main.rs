@@ -1,6 +1,8 @@
+mod buffer;
+
+use crate::buffer::EditorBuffer;
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
-use std::fs::File;
-use std::io::{stdin, stdout, BufRead, BufReader, Error, Read, Write};
+use std::io::{stdin, stdout, Error, Read, Write};
 use std::time::SystemTime;
 
 const KILO_VERSION: &str = "0.1.0";
@@ -146,94 +148,6 @@ impl Default for EditorScreen {
 }
 
 #[derive(Debug, PartialEq)]
-struct EditorLine {
-    line: String,
-    render: String,
-}
-
-#[derive(Debug, PartialEq)]
-pub struct EditorBuffer {
-    lines: Vec<EditorLine>,
-    filepath: Option<String>,
-}
-
-impl EditorBuffer {
-    pub fn new() -> EditorBuffer {
-        EditorBuffer {
-            lines: Vec::new(),
-            filepath: None,
-        }
-    }
-
-    pub fn len(&self) -> usize {
-        self.lines.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.lines.is_empty()
-    }
-
-    pub fn get_line(&self, num: usize) -> Option<String> {
-        self.lines.get(num).map(|el| el.line.clone())
-    }
-
-    pub fn get_render(&self, num: usize) -> Option<String> {
-        self.lines.get(num).map(|el| el.render.clone())
-    }
-
-    pub fn get_filepath(&self) -> Option<String> {
-        self.filepath.clone()
-    }
-
-    pub fn load_file(&mut self, path: String) -> Result<(), Error> {
-        let mut lines: Vec<EditorLine> = Vec::new();
-
-        let file = File::open(&path)?;
-        let file_reader = BufReader::new(file);
-        for ret in file_reader.lines() {
-            let line = ret?;
-
-            let render = self.convert_render(&line);
-            lines.push(EditorLine { line, render });
-        }
-
-        self.lines = lines;
-        self.filepath = Some(path.clone());
-
-        Ok(())
-    }
-
-    fn convert_render(&self, line: &str) -> String {
-        let mut render = String::new();
-        let mut i = 0;
-        for c in line.chars() {
-            match c {
-                '\t' => {
-                    render.push(' ');
-                    i += 1;
-                    while i % TAB_STOP != 0 {
-                        render.push(' ');
-                        i += 1;
-                    }
-                }
-                c => {
-                    render.push(c);
-                }
-            }
-            i += 1;
-        }
-
-        render
-    }
-}
-
-impl Default for EditorBuffer {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[derive(Debug, PartialEq)]
 struct MessageBar {
     message: String,
     updated_at: SystemTime,
@@ -338,25 +252,8 @@ fn read_editor_key(reader: &mut dyn Read) -> Result<EditorKey, Error> {
 
 #[cfg(test)]
 mod tests {
-    use super::{read_editor_key, EditorBuffer, EditorKey, EditorLine, EditorScreen};
+    use super::{read_editor_key, EditorBuffer, EditorKey, EditorScreen};
     use std::io::BufReader;
-
-    #[test]
-    fn test_convert_render() {
-        let buffer = EditorBuffer::new();
-
-        assert_eq!("hoge", buffer.convert_render("hoge"));
-
-        assert_eq!("        ", buffer.convert_render("\t"));
-        assert_eq!("1       ", buffer.convert_render("1\t"));
-        assert_eq!("12      ", buffer.convert_render("12\t"));
-        assert_eq!("123     ", buffer.convert_render("123\t"));
-        assert_eq!("1234    ", buffer.convert_render("1234\t"));
-        assert_eq!("12345   ", buffer.convert_render("12345\t"));
-        assert_eq!("123456  ", buffer.convert_render("123456\t"));
-        assert_eq!("1234567 ", buffer.convert_render("1234567\t"));
-        assert_eq!("12345678        ", buffer.convert_render("12345678\t"));
-    }
 
     #[test]
     fn test_cx_to_rx() {
@@ -364,10 +261,7 @@ mod tests {
         screen.cx = 4;
 
         let mut buffer = EditorBuffer::new();
-        buffer.lines.push(EditorLine {
-            line: "123\t456".to_string(),
-            render: "123     456".to_string(),
-        });
+        buffer.load_string("123\t456".to_string());
 
         let rx = screen.cx_to_rx(&buffer);
         assert_eq!(8, rx);
@@ -376,13 +270,9 @@ mod tests {
     #[test]
     fn test_adjust() {
         let mut buffer = EditorBuffer::new();
-
-        for _ in 0..100 {
-            buffer.lines.push(EditorLine {
-                line: "*".to_string().repeat(100),
-                render: "*".to_string().repeat(100),
-            })
-        }
+        let mut text = "*".to_string().repeat(100);
+        text.push_str("\r\n");
+        buffer.load_string(text.repeat(100));
 
         let mut screen = EditorScreen::new();
         screen.width = 20;
