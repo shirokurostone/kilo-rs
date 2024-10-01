@@ -38,7 +38,7 @@ impl EditorScreen {
     }
 
     pub fn down(&mut self, buffer: &EditorBuffer) {
-        if buffer.len() != 0 && self.cy < buffer.len() {
+        if !buffer.is_empty() && self.cy < buffer.len() {
             self.cy += 1;
         }
     }
@@ -139,6 +139,12 @@ impl EditorScreen {
     }
 }
 
+impl Default for EditorScreen {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Debug, PartialEq)]
 struct EditorLine {
     line: String,
@@ -161,6 +167,10 @@ impl EditorBuffer {
 
     pub fn len(&self) -> usize {
         self.lines.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.lines.is_empty()
     }
 
     pub fn get_line(&self, num: usize) -> Option<String> {
@@ -214,6 +224,12 @@ impl EditorBuffer {
         }
 
         render
+    }
+}
+
+impl Default for EditorBuffer {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -545,7 +561,7 @@ fn draw_rows(screen: &EditorScreen, buffer: &EditorBuffer, buf: &mut String) -> 
                     .collect();
                 buf.push_str(&l);
             }
-        } else if buffer.len() == 0 && i == screen.height / 3 {
+        } else if buffer.is_empty() && i == screen.height / 3 {
             let title = format!("kilo-rs -- version {}", KILO_VERSION);
             let t: String = title.chars().take(screen.width).collect();
             let mut padding = (screen.width - t.len()) / 2;
