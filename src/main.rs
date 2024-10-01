@@ -14,7 +14,7 @@ struct EditorConfig {
 }
 
 #[derive(Debug, PartialEq)]
-struct EditorScreen {
+pub struct EditorScreen {
     cx: usize,
     cy: usize,
     rx: usize,
@@ -25,7 +25,7 @@ struct EditorScreen {
 }
 
 impl EditorScreen {
-    fn new() -> EditorScreen {
+    pub fn new() -> EditorScreen {
         EditorScreen {
             cx: 0,
             cy: 0,
@@ -37,19 +37,19 @@ impl EditorScreen {
         }
     }
 
-    fn down(&mut self, buffer: &EditorBuffer) {
+    pub fn down(&mut self, buffer: &EditorBuffer) {
         if buffer.len() != 0 && self.cy < buffer.len() {
             self.cy += 1;
         }
     }
 
-    fn up(&mut self, _: &EditorBuffer) {
+    pub fn up(&mut self, _: &EditorBuffer) {
         if self.cy > 0 {
             self.cy -= 1;
         }
     }
 
-    fn left(&mut self, buffer: &EditorBuffer) {
+    pub fn left(&mut self, buffer: &EditorBuffer) {
         if self.cx > 0 {
             self.cx -= 1;
         } else if self.cy > 0 {
@@ -60,7 +60,7 @@ impl EditorScreen {
         }
     }
 
-    fn right(&mut self, buffer: &EditorBuffer) {
+    pub fn right(&mut self, buffer: &EditorBuffer) {
         if let Some(line) = buffer.get_line(self.cy) {
             if self.cx < line.len() {
                 self.cx += 1;
@@ -71,25 +71,25 @@ impl EditorScreen {
         }
     }
 
-    fn page_up(&mut self, buffer: &EditorBuffer) {
+    pub fn page_up(&mut self, buffer: &EditorBuffer) {
         self.cy = self.offset_y;
         for _ in 0..self.height {
             self.up(buffer);
         }
     }
 
-    fn page_down(&mut self, buffer: &EditorBuffer) {
+    pub fn page_down(&mut self, buffer: &EditorBuffer) {
         self.cy = self.offset_y + self.height - 1;
         for _ in 0..self.height {
             self.down(buffer);
         }
     }
 
-    fn home(&mut self, _: &EditorBuffer) {
+    pub fn home(&mut self, _: &EditorBuffer) {
         self.cx = 0;
     }
 
-    fn end(&mut self, buffer: &EditorBuffer) {
+    pub fn end(&mut self, buffer: &EditorBuffer) {
         if self.cy < buffer.len() {
             if let Some(line) = buffer.get_line(self.cy) {
                 self.cx = line.len();
@@ -97,7 +97,7 @@ impl EditorScreen {
         }
     }
 
-    fn adjust(&mut self, buffer: &EditorBuffer) {
+    pub fn adjust(&mut self, buffer: &EditorBuffer) {
         self.rx = 0;
 
         if let Some(line) = buffer.get_line(self.cy) {
@@ -146,36 +146,36 @@ struct EditorLine {
 }
 
 #[derive(Debug, PartialEq)]
-struct EditorBuffer {
+pub struct EditorBuffer {
     lines: Vec<EditorLine>,
     filepath: Option<String>,
 }
 
 impl EditorBuffer {
-    fn new() -> EditorBuffer {
+    pub fn new() -> EditorBuffer {
         EditorBuffer {
             lines: Vec::new(),
             filepath: None,
         }
     }
 
-    fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.lines.len()
     }
 
-    fn get_line(&self, num: usize) -> Option<String> {
+    pub fn get_line(&self, num: usize) -> Option<String> {
         self.lines.get(num).map(|el| el.line.clone())
     }
 
-    fn get_render(&self, num: usize) -> Option<String> {
+    pub fn get_render(&self, num: usize) -> Option<String> {
         self.lines.get(num).map(|el| el.render.clone())
     }
 
-    fn get_filepath(&self) -> Option<String> {
+    pub fn get_filepath(&self) -> Option<String> {
         self.filepath.clone()
     }
 
-    fn load_file(&mut self, path: String) -> Result<(), Error> {
+    pub fn load_file(&mut self, path: String) -> Result<(), Error> {
         let mut lines: Vec<EditorLine> = Vec::new();
 
         let file = File::open(&path)?;
