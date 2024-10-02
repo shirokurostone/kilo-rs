@@ -157,6 +157,12 @@ impl MessageBar {
             updated_at: time,
         }
     }
+
+    pub fn get_message(&self, now: SystemTime) -> Option<String> {
+        now.duration_since(self.updated_at)
+            .map(|d| d.as_secs() < 5)
+            .map_or(None, |b| if b { Some(self.message.clone()) } else { None })
+    }
 }
 
 pub fn refresh_screen(
@@ -268,11 +274,8 @@ fn draw_messagebar(message_bar: &MessageBar, buf: &mut String) -> Result<(), Err
     buf.push_str("\x1b[K");
 
     let now = SystemTime::now();
-
-    if let Ok(t) = now.duration_since(message_bar.updated_at) {
-        if t.as_secs() < 5 {
-            buf.push_str(&message_bar.message);
-        }
+    if let Some(message) = message_bar.get_message(now) {
+        buf.push_str(&message);
     }
 
     Ok(())
