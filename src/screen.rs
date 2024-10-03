@@ -158,6 +158,11 @@ impl MessageBar {
         }
     }
 
+    pub fn set(&mut self, message: String, time: SystemTime) {
+        self.message = message;
+        self.updated_at = time;
+    }
+
     pub fn get_message(&self, now: SystemTime) -> Option<String> {
         now.duration_since(self.updated_at)
             .map(|d| d.as_secs() < 5)
