@@ -1,6 +1,7 @@
 use crate::TAB_STOP;
 use std::fs::File;
-use std::io::{BufRead, BufReader, Error};
+use std::io::{BufRead, BufReader, Error, Write};
+use std::os::unix::fs::MetadataExt;
 
 #[derive(Debug, PartialEq)]
 struct EditorLine {
@@ -60,6 +61,29 @@ impl EditorBuffer {
         Ok(())
     }
 
+    pub fn save_file(&mut self, path: String) -> Result<u64, Error> {
+        let mut file = File::create(&path)?;
+        file.write_all(
+            self.lines
+                .iter()
+                .map(|el| el.line.clone())
+                .collect::<Vec<String>>()
+                .join("\n")
+                .as_bytes(),
+        )?;
+        file.flush()?;
+        self.filepath = Some(path.clone());
+        Ok(file.metadata()?.size())
+    }
+
+    pub fn overwrite_file(&mut self) -> Result<u64, Error> {
+        if let Some(path) = &self.filepath {
+            self.save_file(path.clone())
+        } else {
+            Err(Error::other("no save file path"))
+        }
+    }
+
     pub fn load_string(&mut self, text: String) {
         let mut lines: Vec<EditorLine> = Vec::new();
 
@@ -73,6 +97,20 @@ impl EditorBuffer {
 
         self.lines = lines;
         self.filepath = None;
+    }
+
+    pub fn append_row(&mut self, line: String) {
+        self.lines.push(EditorLine {
+            line: line.to_string(),
+            render: self.convert_render(&line),
+        })
+    }
+
+    pub fn insert_char(&mut self, cx: usize, cy: usize, c: char) {
+        if let Some(el) = self.lines.get_mut(cy) {
+            el.line.insert(cx, c);
+            el.render.insert(cx, c);
+        }
     }
 
     fn convert_render(&self, line: &str) -> String {

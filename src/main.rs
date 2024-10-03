@@ -49,9 +49,18 @@ fn read_single_key(reader: &mut dyn Read) -> Result<char, Error> {
 
 fn read_editor_key(reader: &mut dyn Read) -> Result<EditorKey, Error> {
     match read_single_key(reader)? {
+        '\x08' => {
+            // ctrl+h
+            Ok(EditorKey::Backspace)
+        }
+        '\r' => Ok(EditorKey::Enter),
         '\x11' => {
             // ctrl+q
             Ok(EditorKey::Exit)
+        }
+        '\x13' => {
+            // ctrl+s
+            Ok(EditorKey::Save)
         }
         '\x1b' => match read_single_key(reader)? {
             '[' => match read_single_key(reader)? {
@@ -98,6 +107,7 @@ fn read_editor_key(reader: &mut dyn Read) -> Result<EditorKey, Error> {
             },
             _ => Ok(EditorKey::OtherKey('\x1b')),
         },
+        '\x7f' => Ok(EditorKey::Backspace),
         c => Ok(EditorKey::OtherKey(c)),
     }
 }
@@ -143,6 +153,7 @@ mod tests {
 #[derive(Debug, PartialEq)]
 enum EditorKey {
     Exit,
+    Save,
     ArrowLeft,
     ArrowRight,
     ArrowUp,
@@ -151,20 +162,32 @@ enum EditorKey {
     PageDown,
     Home,
     End,
+    Enter,
     Delete,
+    Backspace,
     OtherKey(char),
 }
 
 fn process_key_press(
     screen: &mut EditorScreen,
-    buffer: &EditorBuffer,
+    buffer: &mut EditorBuffer,
+    message_bar: &mut MessageBar,
     editor_key: EditorKey,
 ) -> Result<(), Error> {
     match editor_key {
         EditorKey::Exit => {
-            // ctrl+q
             return Err(Error::other("exit"));
         }
+        EditorKey::Save => match buffer.overwrite_file() {
+            Ok(size) => {
+                let success_message = format!("{} bytes written to disk", size);
+                message_bar.set(success_message, SystemTime::now());
+            }
+            Err(err) => {
+                let err_message = format!("Can't save! I/O error: {}", err);
+                message_bar.set(err_message, SystemTime::now());
+            }
+        },
         EditorKey::ArrowDown => screen.down(buffer),
         EditorKey::ArrowUp => screen.up(buffer),
         EditorKey::ArrowLeft => screen.left(buffer),
@@ -172,11 +195,15 @@ fn process_key_press(
         EditorKey::PageUp => screen.page_up(buffer),
         EditorKey::PageDown => screen.page_down(buffer),
         EditorKey::Home => screen.home(buffer),
+        EditorKey::Enter => {}
         EditorKey::End => screen.end(buffer),
         EditorKey::Delete => {}
-        EditorKey::OtherKey(c) => {
-            print!("{}\r\n", c);
-        }
+        EditorKey::Backspace => {}
+        EditorKey::OtherKey(c) => match c {
+            '\x0c' => {} // ctrl+l
+            '\x1b' => {} // esc
+            key => screen.insert_char(buffer, key),
+        },
     }
 
     screen.adjust(buffer);
@@ -198,7 +225,8 @@ fn run(args: Vec<String>) -> Result<(), Error> {
         refresh_screen(&config.screen, &config.buffer, &config.message_bar)?;
         match process_key_press(
             &mut config.screen,
-            &config.buffer,
+            &mut config.buffer,
+            &mut config.message_bar,
             read_editor_key(&mut stdin)?,
         ) {
             Err(_) => break,

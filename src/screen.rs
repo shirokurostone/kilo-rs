@@ -96,6 +96,15 @@ impl EditorScreen {
         }
     }
 
+    pub fn insert_char(&mut self, buffer: &mut EditorBuffer, c: char) {
+        if self.cy == buffer.len() {
+            buffer.append_row("".to_string());
+            self.cx = 0;
+        }
+        buffer.insert_char(self.cx, self.cy, c);
+        self.cx += 1
+    }
+
     pub fn adjust(&mut self, buffer: &EditorBuffer) {
         self.rx = 0;
 
