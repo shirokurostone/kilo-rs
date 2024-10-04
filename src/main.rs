@@ -9,6 +9,7 @@ use std::time::SystemTime;
 
 const KILO_VERSION: &str = "0.1.0";
 const TAB_STOP: usize = 8;
+const QUIT_TIMES: usize = 3;
 
 #[derive(Debug, PartialEq)]
 struct EditorConfig {
@@ -172,10 +173,21 @@ fn process_key_press(
     screen: &mut EditorScreen,
     buffer: &mut EditorBuffer,
     message_bar: &mut MessageBar,
+    quit_times: &mut usize,
     editor_key: EditorKey,
 ) -> Result<(), Error> {
     match editor_key {
         EditorKey::Exit => {
+            if buffer.is_dirty() && *quit_times > 0 {
+                let warning_message = format!(
+                    "WARNING!!! File has unsaved changes. Press Ctrl+Q {} more times to quit.",
+                    quit_times
+                );
+                message_bar.set(warning_message, SystemTime::now());
+                *quit_times -= 1;
+                return Ok(());
+            }
+
             return Err(Error::other("exit"));
         }
         EditorKey::Save => match buffer.overwrite_file() {
@@ -207,6 +219,7 @@ fn process_key_press(
     }
 
     screen.adjust(buffer);
+    *quit_times = QUIT_TIMES;
 
     Ok(())
 }
@@ -214,6 +227,7 @@ fn process_key_press(
 fn run(args: Vec<String>) -> Result<(), Error> {
     let mut stdin = stdin();
     let mut config = init_editor()?;
+    let mut quit_times = QUIT_TIMES;
 
     if args.len() > 1 {
         config.buffer.load_file(args.get(1).unwrap().to_string())?;
@@ -227,6 +241,7 @@ fn run(args: Vec<String>) -> Result<(), Error> {
             &mut config.screen,
             &mut config.buffer,
             &mut config.message_bar,
+            &mut quit_times,
             read_editor_key(&mut stdin)?,
         ) {
             Err(_) => break,
