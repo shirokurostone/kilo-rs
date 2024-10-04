@@ -105,6 +105,23 @@ impl EditorScreen {
         self.cx += 1
     }
 
+    pub fn delete_char(&mut self, buffer: &mut EditorBuffer) {
+        if self.cx == 0 && self.cy == 0 {
+        } else if self.cx == 0 {
+            if let Some(prev) = buffer.get_line(self.cy - 1) {
+                if let Some(current) = buffer.get_line(self.cy) {
+                    self.cx = prev.len();
+                    buffer.append_string(self.cx, self.cy - 1, current);
+                    buffer.delete_line(self.cy);
+                    self.cy -= 1;
+                }
+            }
+        } else {
+            buffer.delete_char(self.cx - 1, self.cy);
+            self.cx -= 1;
+        }
+    }
+
     pub fn adjust(&mut self, buffer: &EditorBuffer) {
         self.rx = 0;
 

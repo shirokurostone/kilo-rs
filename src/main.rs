@@ -209,8 +209,13 @@ fn process_key_press(
         EditorKey::Home => screen.home(buffer),
         EditorKey::Enter => {}
         EditorKey::End => screen.end(buffer),
-        EditorKey::Delete => {}
-        EditorKey::Backspace => {}
+        EditorKey::Delete => {
+            screen.right(buffer);
+            screen.delete_char(buffer);
+        }
+        EditorKey::Backspace => {
+            screen.delete_char(buffer);
+        }
         EditorKey::OtherKey(c) => match c {
             '\x0c' => {} // ctrl+l
             '\x1b' => {} // esc

@@ -125,6 +125,29 @@ impl EditorBuffer {
         }
     }
 
+    pub fn delete_char(&mut self, cx: usize, cy: usize) {
+        if let Some(el) = self.lines.get_mut(cy) {
+            if cx < el.line.len() {
+                el.line.remove(cx);
+                el.render.remove(cx);
+                self.dirty = true;
+            }
+        }
+    }
+
+    pub fn delete_line(&mut self, cy: usize) {
+        self.lines.remove(cy);
+        self.dirty = true;
+    }
+
+    pub fn append_string(&mut self, cx: usize, cy: usize, message: String) {
+        if let Some(el) = self.lines.get_mut(cy) {
+            el.line.insert_str(cx, &message);
+            el.render.insert_str(cx, &message);
+            self.dirty = true;
+        }
+    }
+
     fn convert_render(&self, line: &str) -> String {
         let mut render = String::new();
         let mut i = 0;
