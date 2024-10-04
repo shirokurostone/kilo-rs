@@ -252,11 +252,12 @@ fn draw_statusbar(
     buf.push_str("\x1b[7m");
 
     let status = format!(
-        "{:<20} - {} lines",
+        "{:<20} - {} lines {}",
         buffer
             .get_filepath()
             .unwrap_or_else(|| "[No Name]".to_string()),
         screen.height,
+        if buffer.is_dirty() { "(modified)" } else { "" }
     );
 
     if screen.width < status.len() {

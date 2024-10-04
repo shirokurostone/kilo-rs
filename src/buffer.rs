@@ -13,6 +13,7 @@ struct EditorLine {
 pub struct EditorBuffer {
     lines: Vec<EditorLine>,
     filepath: Option<String>,
+    dirty: bool,
 }
 
 impl EditorBuffer {
@@ -20,6 +21,7 @@ impl EditorBuffer {
         EditorBuffer {
             lines: Vec::new(),
             filepath: None,
+            dirty: false,
         }
     }
 
@@ -43,6 +45,10 @@ impl EditorBuffer {
         self.filepath.clone()
     }
 
+    pub fn is_dirty(&self) -> bool {
+        self.dirty
+    }
+
     pub fn load_file(&mut self, path: String) -> Result<(), Error> {
         let mut lines: Vec<EditorLine> = Vec::new();
 
@@ -57,6 +63,7 @@ impl EditorBuffer {
 
         self.lines = lines;
         self.filepath = Some(path.clone());
+        self.dirty = false;
 
         Ok(())
     }
@@ -73,6 +80,8 @@ impl EditorBuffer {
         )?;
         file.flush()?;
         self.filepath = Some(path.clone());
+        self.dirty = false;
+
         Ok(file.metadata()?.size())
     }
 
@@ -97,19 +106,22 @@ impl EditorBuffer {
 
         self.lines = lines;
         self.filepath = None;
+        self.dirty = false;
     }
 
     pub fn append_row(&mut self, line: String) {
         self.lines.push(EditorLine {
             line: line.to_string(),
             render: self.convert_render(&line),
-        })
+        });
+        self.dirty = true;
     }
 
     pub fn insert_char(&mut self, cx: usize, cy: usize, c: char) {
         if let Some(el) = self.lines.get_mut(cy) {
             el.line.insert(cx, c);
             el.render.insert(cx, c);
+            self.dirty = true;
         }
     }
 
