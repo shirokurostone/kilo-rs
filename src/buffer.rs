@@ -5,8 +5,59 @@ use std::os::unix::fs::MetadataExt;
 
 #[derive(Debug, PartialEq)]
 struct EditorLine {
-    line: String,
+    raw: String,
     render: String,
+}
+
+impl EditorLine {
+
+    fn new(line: String) -> EditorLine{
+        let mut el = EditorLine{
+            raw: line,
+            render: String::new(),
+        };
+
+        el.render = el.convert_render(&el.raw);
+        el
+    }
+
+    fn remove_char(&mut self, index: usize) {
+        self.raw.remove(index);
+        self.render = self.convert_render(&self.raw);
+    }
+
+    fn insert_char(&mut self, index: usize, c: char) {
+        self.raw.insert(index, c);
+        self.render = self.convert_render(&self.raw);
+    }
+
+    fn insert_str(&mut self, index: usize, str: &str) {
+        self.raw.insert_str(index, str);
+        self.render = self.convert_render(&self.raw);
+    }
+
+    fn convert_render(&self, line: &str) -> String {
+        let mut render = String::new();
+        let mut i = 0;
+        for c in line.chars() {
+            match c {
+                '\t' => {
+                    render.push(' ');
+                    i += 1;
+                    while i % TAB_STOP != 0 {
+                        render.push(' ');
+                        i += 1;
+                    }
+                }
+                c => {
+                    render.push(c);
+                }
+            }
+            i += 1;
+        }
+
+        render
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -34,7 +85,7 @@ impl EditorBuffer {
     }
 
     pub fn get_line(&self, num: usize) -> Option<String> {
-        self.lines.get(num).map(|el| el.line.clone())
+        self.lines.get(num).map(|el| el.raw.clone())
     }
 
     pub fn get_render(&self, num: usize) -> Option<String> {
@@ -55,10 +106,7 @@ impl EditorBuffer {
         let file = File::open(&path)?;
         let file_reader = BufReader::new(file);
         for ret in file_reader.lines() {
-            let line = ret?;
-
-            let render = self.convert_render(&line);
-            lines.push(EditorLine { line, render });
+            lines.push(EditorLine::new(ret?));
         }
 
         self.lines = lines;
@@ -73,7 +121,7 @@ impl EditorBuffer {
         file.write_all(
             self.lines
                 .iter()
-                .map(|el| el.line.clone())
+                .map(|el| el.raw.clone())
                 .collect::<Vec<String>>()
                 .join("\n")
                 .as_bytes(),
@@ -97,11 +145,7 @@ impl EditorBuffer {
         let mut lines: Vec<EditorLine> = Vec::new();
 
         for line in text.lines() {
-            let render = self.convert_render(line);
-            lines.push(EditorLine {
-                line: line.to_string(),
-                render,
-            });
+            lines.push(EditorLine::new(line.to_string()));
         }
 
         self.lines = lines;
@@ -112,27 +156,22 @@ impl EditorBuffer {
     pub fn insert_line(&mut self, cy: usize, line: String) {
         self.lines.insert(
             cy,
-            EditorLine {
-                line: line.to_string(),
-                render: self.convert_render(&line),
-            },
+            EditorLine::new(line.to_string()),
         );
         self.dirty = true;
     }
 
     pub fn insert_char(&mut self, cx: usize, cy: usize, c: char) {
         if let Some(el) = self.lines.get_mut(cy) {
-            el.line.insert(cx, c);
-            el.render.insert(cx, c);
+            el.insert_char(cx, c);
             self.dirty = true;
         }
     }
 
     pub fn delete_char(&mut self, cx: usize, cy: usize) {
         if let Some(el) = self.lines.get_mut(cy) {
-            if cx < el.line.len() {
-                el.line.remove(cx);
-                el.render.remove(cx);
+            if cx < el.raw.len() {
+                el.remove_char(cx);
                 self.dirty = true;
             }
         }
@@ -144,41 +183,14 @@ impl EditorBuffer {
     }
 
     pub fn replace_line(&mut self, cy: usize, new_line: String) {
-        self.lines[cy] = EditorLine {
-            line: new_line.clone(),
-            render: self.convert_render(&new_line),
-        };
+        self.lines[cy] = EditorLine::new(new_line);
     }
 
     pub fn append_string(&mut self, cx: usize, cy: usize, message: String) {
         if let Some(el) = self.lines.get_mut(cy) {
-            el.line.insert_str(cx, &message);
-            el.render.insert_str(cx, &message);
+            el.insert_str(cx, &message);
             self.dirty = true;
         }
-    }
-
-    fn convert_render(&self, line: &str) -> String {
-        let mut render = String::new();
-        let mut i = 0;
-        for c in line.chars() {
-            match c {
-                '\t' => {
-                    render.push(' ');
-                    i += 1;
-                    while i % TAB_STOP != 0 {
-                        render.push(' ');
-                        i += 1;
-                    }
-                }
-                c => {
-                    render.push(c);
-                }
-            }
-            i += 1;
-        }
-
-        render
     }
 }
 
@@ -190,22 +202,22 @@ impl Default for EditorBuffer {
 
 #[cfg(test)]
 mod tests {
-    use super::EditorBuffer;
+    use super::EditorLine;
 
     #[test]
     fn test_convert_render() {
-        let buffer = EditorBuffer::new();
+        let el = EditorLine::new("".to_string());
 
-        assert_eq!("hoge", buffer.convert_render("hoge"));
+        assert_eq!("hoge", el.convert_render("hoge"));
 
-        assert_eq!("        ", buffer.convert_render("\t"));
-        assert_eq!("1       ", buffer.convert_render("1\t"));
-        assert_eq!("12      ", buffer.convert_render("12\t"));
-        assert_eq!("123     ", buffer.convert_render("123\t"));
-        assert_eq!("1234    ", buffer.convert_render("1234\t"));
-        assert_eq!("12345   ", buffer.convert_render("12345\t"));
-        assert_eq!("123456  ", buffer.convert_render("123456\t"));
-        assert_eq!("1234567 ", buffer.convert_render("1234567\t"));
-        assert_eq!("12345678        ", buffer.convert_render("12345678\t"));
+        assert_eq!("        ", el.convert_render("\t"));
+        assert_eq!("1       ", el.convert_render("1\t"));
+        assert_eq!("12      ", el.convert_render("12\t"));
+        assert_eq!("123     ", el.convert_render("123\t"));
+        assert_eq!("1234    ", el.convert_render("1234\t"));
+        assert_eq!("12345   ", el.convert_render("12345\t"));
+        assert_eq!("123456  ", el.convert_render("123456\t"));
+        assert_eq!("1234567 ", el.convert_render("1234567\t"));
+        assert_eq!("12345678        ", el.convert_render("12345678\t"));
     }
 }
