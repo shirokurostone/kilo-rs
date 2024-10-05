@@ -170,6 +170,7 @@ enum EditorKey {
 }
 
 fn process_key_press(
+    reader: &mut dyn Read,
     screen: &mut EditorScreen,
     buffer: &mut EditorBuffer,
     message_bar: &mut MessageBar,
@@ -190,16 +191,27 @@ fn process_key_press(
 
             return Err(Error::other("exit"));
         }
-        EditorKey::Save => match buffer.overwrite_file() {
-            Ok(size) => {
-                let success_message = format!("{} bytes written to disk", size);
-                message_bar.set(success_message, SystemTime::now());
+        EditorKey::Save => {
+            let ret = if buffer.get_filepath().is_none() {
+                match prompt(reader, screen, buffer, message_bar, "Save as: ".to_string()) {
+                    Ok(path) => buffer.save_file(path),
+                    Err(_) => return Ok(()),
+                }
+            } else {
+                buffer.overwrite_file()
+            };
+
+            match ret {
+                Ok(size) => {
+                    let success_message = format!("{} bytes written to disk", size);
+                    message_bar.set(success_message, SystemTime::now());
+                }
+                Err(err) => {
+                    let err_message = format!("Can't save! I/O error: {}", err);
+                    message_bar.set(err_message, SystemTime::now());
+                }
             }
-            Err(err) => {
-                let err_message = format!("Can't save! I/O error: {}", err);
-                message_bar.set(err_message, SystemTime::now());
-            }
-        },
+        }
         EditorKey::ArrowDown => screen.down(buffer),
         EditorKey::ArrowUp => screen.up(buffer),
         EditorKey::ArrowLeft => screen.left(buffer),
@@ -229,6 +241,39 @@ fn process_key_press(
     Ok(())
 }
 
+pub fn prompt(
+    reader: &mut dyn Read,
+    screen: &EditorScreen,
+    buffer: &EditorBuffer,
+    message_bar: &mut MessageBar,
+    prompt: String,
+) -> Result<String, Error> {
+    let mut input = String::new();
+    let mut buf = prompt.clone();
+
+    message_bar.set(buf.clone(), SystemTime::now());
+
+    loop {
+        refresh_screen(screen, buffer, message_bar)?;
+        match read_editor_key(reader)? {
+            EditorKey::Enter => {
+                message_bar.set("".to_string(), SystemTime::now());
+                return Ok(input);
+            }
+            EditorKey::OtherKey('\x1b') => {
+                message_bar.set("aborted".to_string(), SystemTime::now());
+                return Err(Error::other("aborted"));
+            }
+            EditorKey::OtherKey(c) => {
+                input.push(c);
+                buf.push(c);
+                message_bar.set(buf.clone(), SystemTime::now());
+            }
+            _ => {}
+        }
+    }
+}
+
 fn run(args: Vec<String>) -> Result<(), Error> {
     let mut stdin = stdin();
     let mut config = init_editor()?;
@@ -242,12 +287,14 @@ fn run(args: Vec<String>) -> Result<(), Error> {
 
     loop {
         refresh_screen(&config.screen, &config.buffer, &config.message_bar)?;
+        let key = read_editor_key(&mut stdin)?;
         match process_key_press(
+            &mut stdin,
             &mut config.screen,
             &mut config.buffer,
             &mut config.message_bar,
             &mut quit_times,
-            read_editor_key(&mut stdin)?,
+            key,
         ) {
             Err(_) => break,
             Ok(_) => continue,
