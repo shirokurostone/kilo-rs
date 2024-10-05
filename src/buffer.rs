@@ -109,11 +109,14 @@ impl EditorBuffer {
         self.dirty = false;
     }
 
-    pub fn append_row(&mut self, line: String) {
-        self.lines.push(EditorLine {
-            line: line.to_string(),
-            render: self.convert_render(&line),
-        });
+    pub fn insert_line(&mut self, cy: usize, line: String) {
+        self.lines.insert(
+            cy,
+            EditorLine {
+                line: line.to_string(),
+                render: self.convert_render(&line),
+            },
+        );
         self.dirty = true;
     }
 
@@ -138,6 +141,13 @@ impl EditorBuffer {
     pub fn delete_line(&mut self, cy: usize) {
         self.lines.remove(cy);
         self.dirty = true;
+    }
+
+    pub fn replace_line(&mut self, cy: usize, new_line: String) {
+        self.lines[cy] = EditorLine {
+            line: new_line.clone(),
+            render: self.convert_render(&new_line),
+        };
     }
 
     pub fn append_string(&mut self, cx: usize, cy: usize, message: String) {

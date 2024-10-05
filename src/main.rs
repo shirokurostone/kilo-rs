@@ -207,7 +207,7 @@ fn process_key_press(
         EditorKey::PageUp => screen.page_up(buffer),
         EditorKey::PageDown => screen.page_down(buffer),
         EditorKey::Home => screen.home(buffer),
-        EditorKey::Enter => {}
+        EditorKey::Enter => screen.insert_new_line(buffer),
         EditorKey::End => screen.end(buffer),
         EditorKey::Delete => {
             screen.right(buffer);

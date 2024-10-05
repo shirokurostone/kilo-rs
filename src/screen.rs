@@ -96,9 +96,20 @@ impl EditorScreen {
         }
     }
 
+    pub fn insert_new_line(&mut self, buffer: &mut EditorBuffer) {
+        if self.cx == 0 {
+            buffer.insert_line(self.cy, "".to_string());
+        } else if let Some(current) = buffer.get_line(self.cy) {
+            buffer.replace_line(self.cy, (current[0..self.cx]).to_string());
+            buffer.insert_line(self.cy + 1, (current[self.cx..]).to_string());
+        }
+        self.cx = 0;
+        self.cy += 1;
+    }
+
     pub fn insert_char(&mut self, buffer: &mut EditorBuffer, c: char) {
         if self.cy == buffer.len() {
-            buffer.append_row("".to_string());
+            buffer.insert_line(buffer.len(), "".to_string());
             self.cx = 0;
         }
         buffer.insert_char(self.cx, self.cy, c);
