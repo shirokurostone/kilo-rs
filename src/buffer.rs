@@ -10,9 +10,8 @@ struct EditorLine {
 }
 
 impl EditorLine {
-
-    fn new(line: String) -> EditorLine{
-        let mut el = EditorLine{
+    fn new(line: String) -> EditorLine {
+        let mut el = EditorLine {
             raw: line,
             render: String::new(),
         };
@@ -154,10 +153,7 @@ impl EditorBuffer {
     }
 
     pub fn insert_line(&mut self, cy: usize, line: String) {
-        self.lines.insert(
-            cy,
-            EditorLine::new(line.to_string()),
-        );
+        self.lines.insert(cy, EditorLine::new(line.to_string()));
         self.dirty = true;
     }
 
