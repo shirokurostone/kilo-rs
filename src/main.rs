@@ -49,110 +49,139 @@ fn read_single_key(reader: &mut dyn Read) -> Result<char, Error> {
 }
 
 fn read_editor_key(reader: &mut dyn Read) -> Result<EditorKey, Error> {
-    match read_single_key(reader)? {
-        '\x08' => {
-            // ctrl+h
-            Ok(EditorKey::Backspace)
-        }
+    let c = read_single_key(reader)?;
+    let escape_sequence_table = [
+        ("\x1b[A", EditorKey::ArrowUp),
+        ("\x1b[B", EditorKey::ArrowDown),
+        ("\x1b[C", EditorKey::ArrowRight),
+        ("\x1b[D", EditorKey::ArrowLeft),
+        ("\x1b[H", EditorKey::Home),
+        ("\x1b[F", EditorKey::End),
+        ("\x1b[1~", EditorKey::Home),
+        ("\x1b[3~", EditorKey::Delete),
+        ("\x1b[4~", EditorKey::End),
+        ("\x1b[5~", EditorKey::PageUp),
+        ("\x1b[6~", EditorKey::PageDown),
+        ("\x1b[7~", EditorKey::Home),
+        ("\x1b[8~", EditorKey::End),
+        ("\x1bOH", EditorKey::Home),
+        ("\x1bOF", EditorKey::End),
+    ];
+
+    match c {
         '\r' => Ok(EditorKey::Enter),
-        '\x11' => {
-            // ctrl+q
-            Ok(EditorKey::Exit)
+        '\x01'..'\x1b' => Ok(EditorKey::ControlSequence(((c as u8) + b'a' - 1) as char)),
+        '\x1b' => {
+            let mut buf = String::from("\x1b");
+            loop {
+                let c2 = read_single_key(reader)?;
+                buf.push(c2);
+
+                let matches = escape_sequence_table
+                    .iter()
+                    .filter(|seq| seq.0.starts_with(&buf))
+                    .collect::<Vec<_>>();
+
+                if matches.is_empty() {
+                    return Ok(EditorKey::Escape);
+                } else if matches.len() == 1 && buf.eq(matches[0].0) {
+                    return Ok(matches[0].1);
+                }
+            }
         }
-        '\x13' => {
-            // ctrl+s
-            Ok(EditorKey::Save)
-        }
-        '\x1b' => match read_single_key(reader)? {
-            '[' => match read_single_key(reader)? {
-                'A' => Ok(EditorKey::ArrowUp),
-                'B' => Ok(EditorKey::ArrowDown),
-                'C' => Ok(EditorKey::ArrowRight),
-                'D' => Ok(EditorKey::ArrowLeft),
-                'H' => Ok(EditorKey::Home),
-                'F' => Ok(EditorKey::End),
-                '1' => match read_single_key(reader)? {
-                    '~' => Ok(EditorKey::Home),
-                    _ => Ok(EditorKey::OtherKey('\x1b')),
-                },
-                '3' => match read_single_key(reader)? {
-                    '~' => Ok(EditorKey::Delete),
-                    _ => Ok(EditorKey::OtherKey('\x1b')),
-                },
-                '4' => match read_single_key(reader)? {
-                    '~' => Ok(EditorKey::End),
-                    _ => Ok(EditorKey::OtherKey('\x1b')),
-                },
-                '5' => match read_single_key(reader)? {
-                    '~' => Ok(EditorKey::PageUp),
-                    _ => Ok(EditorKey::OtherKey('\x1b')),
-                },
-                '6' => match read_single_key(reader)? {
-                    '~' => Ok(EditorKey::PageDown),
-                    _ => Ok(EditorKey::OtherKey('\x1b')),
-                },
-                '7' => match read_single_key(reader)? {
-                    '~' => Ok(EditorKey::Home),
-                    _ => Ok(EditorKey::OtherKey('\x1b')),
-                },
-                '8' => match read_single_key(reader)? {
-                    '~' => Ok(EditorKey::End),
-                    _ => Ok(EditorKey::OtherKey('\x1b')),
-                },
-                _ => Ok(EditorKey::OtherKey('\x1b')),
-            },
-            'O' => match read_single_key(reader)? {
-                'H' => Ok(EditorKey::Home),
-                'F' => Ok(EditorKey::End),
-                _ => Ok(EditorKey::OtherKey('\x1b')),
-            },
-            _ => Ok(EditorKey::OtherKey('\x1b')),
-        },
         '\x7f' => Ok(EditorKey::Backspace),
-        c => Ok(EditorKey::OtherKey(c)),
+        c => Ok(EditorKey::NormalKey(c)),
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{read_editor_key, EditorKey};
+    use super::{read_editor_key, resolve_command, Command, EditorKey};
     use std::io::BufReader;
+
+    fn assert_read_editor_key(input: &str, expected: EditorKey) {
+        let data = input.bytes().collect::<Vec<u8>>();
+        let mut reader = BufReader::new(&data[..]);
+        let actual = read_editor_key(&mut reader);
+        assert_eq!(expected, actual.unwrap(), "input:{}", input.escape_debug());
+    }
+
+    #[test]
+    fn test_read_editor_key_escape() {
+        assert_read_editor_key("\x1b[A", EditorKey::ArrowUp);
+        assert_read_editor_key("\x1b[B", EditorKey::ArrowDown);
+        assert_read_editor_key("\x1b[C", EditorKey::ArrowRight);
+        assert_read_editor_key("\x1b[D", EditorKey::ArrowLeft);
+        assert_read_editor_key("\x1b[H", EditorKey::Home);
+        assert_read_editor_key("\x1b[F", EditorKey::End);
+
+        assert_read_editor_key("\x1b[1~", EditorKey::Home);
+        assert_read_editor_key("\x1b[3~", EditorKey::Delete);
+        assert_read_editor_key("\x1b[4~", EditorKey::End);
+        assert_read_editor_key("\x1b[5~", EditorKey::PageUp);
+        assert_read_editor_key("\x1b[6~", EditorKey::PageDown);
+        assert_read_editor_key("\x1b[7~", EditorKey::Home);
+        assert_read_editor_key("\x1b[8~", EditorKey::End);
+
+        assert_read_editor_key("\x1bOH", EditorKey::Home);
+        assert_read_editor_key("\x1bOF", EditorKey::End);
+    }
 
     #[test]
     fn test_read_editor_key() {
-        let assert = |input: &str, expected: EditorKey| {
-            let data = input.bytes().collect::<Vec<u8>>();
-            let mut reader = BufReader::new(&data[..]);
-            let actual = read_editor_key(&mut reader);
-            assert_eq!(expected, actual.unwrap(), "input:{}", input.escape_debug());
-        };
+        assert_read_editor_key("\r", EditorKey::Enter);
+        assert_read_editor_key("\x7f", EditorKey::Backspace);
+        assert_read_editor_key(" ", EditorKey::NormalKey(' '));
+        assert_read_editor_key("~", EditorKey::NormalKey('~'));
+        assert_read_editor_key("\x01", EditorKey::ControlSequence('a'));
+        assert_read_editor_key("\x1a", EditorKey::ControlSequence('z'));
+    }
 
-        assert("\x11", EditorKey::Exit);
-
-        assert("\x1b[A", EditorKey::ArrowUp);
-        assert("\x1b[B", EditorKey::ArrowDown);
-        assert("\x1b[C", EditorKey::ArrowRight);
-        assert("\x1b[D", EditorKey::ArrowLeft);
-        assert("\x1b[H", EditorKey::Home);
-        assert("\x1b[F", EditorKey::End);
-
-        assert("\x1b[1~", EditorKey::Home);
-        assert("\x1b[3~", EditorKey::Delete);
-        assert("\x1b[4~", EditorKey::End);
-        assert("\x1b[5~", EditorKey::PageUp);
-        assert("\x1b[6~", EditorKey::PageDown);
-        assert("\x1b[7~", EditorKey::Home);
-        assert("\x1b[8~", EditorKey::End);
-
-        assert("\x1bOH", EditorKey::Home);
-        assert("\x1bOF", EditorKey::End);
-
-        assert("a", EditorKey::OtherKey('a'));
+    #[test]
+    fn test_resolve_command_control_sequence() {
+        assert_eq!(
+            Command::Noop,
+            resolve_command(EditorKey::ControlSequence('a'))
+        );
+        assert_eq!(
+            Command::Backspace,
+            resolve_command(EditorKey::ControlSequence('h'))
+        );
+        assert_eq!(
+            Command::Enter,
+            resolve_command(EditorKey::ControlSequence('m'))
+        );
+        assert_eq!(
+            Command::Exit,
+            resolve_command(EditorKey::ControlSequence('q'))
+        );
+        assert_eq!(
+            Command::Save,
+            resolve_command(EditorKey::ControlSequence('s'))
+        );
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 enum EditorKey {
+    ArrowLeft,
+    ArrowRight,
+    ArrowUp,
+    ArrowDown,
+    PageUp,
+    PageDown,
+    Home,
+    End,
+    Enter,
+    Delete,
+    Backspace,
+    Escape,
+    ControlSequence(char),
+    NormalKey(char),
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+enum Command {
     Exit,
     Save,
     ArrowLeft,
@@ -166,7 +195,32 @@ enum EditorKey {
     Enter,
     Delete,
     Backspace,
-    OtherKey(char),
+    Escape,
+    Input(char),
+    Noop,
+}
+
+fn resolve_command(key: EditorKey) -> Command {
+    match key {
+        EditorKey::ControlSequence('h') => Command::Backspace,
+        EditorKey::ControlSequence('m') => Command::Enter,
+        EditorKey::ControlSequence('q') => Command::Exit,
+        EditorKey::ControlSequence('s') => Command::Save,
+        EditorKey::ArrowLeft => Command::ArrowLeft,
+        EditorKey::ArrowRight => Command::ArrowRight,
+        EditorKey::ArrowUp => Command::ArrowUp,
+        EditorKey::ArrowDown => Command::ArrowDown,
+        EditorKey::PageUp => Command::PageUp,
+        EditorKey::PageDown => Command::PageDown,
+        EditorKey::Home => Command::Home,
+        EditorKey::End => Command::End,
+        EditorKey::Enter => Command::Enter,
+        EditorKey::Delete => Command::Delete,
+        EditorKey::Backspace => Command::Backspace,
+        EditorKey::Escape => Command::Escape,
+        EditorKey::NormalKey(c) => Command::Input(c),
+        _ => Command::Noop,
+    }
 }
 
 fn process_key_press(
@@ -175,10 +229,10 @@ fn process_key_press(
     buffer: &mut EditorBuffer,
     message_bar: &mut MessageBar,
     quit_times: &mut usize,
-    editor_key: EditorKey,
+    command: Command,
 ) -> Result<(), Error> {
-    match editor_key {
-        EditorKey::Exit => {
+    match command {
+        Command::Exit => {
             if buffer.is_dirty() && *quit_times > 0 {
                 let warning_message = format!(
                     "WARNING!!! File has unsaved changes. Press Ctrl+Q {} more times to quit.",
@@ -191,7 +245,7 @@ fn process_key_press(
 
             return Err(Error::other("exit"));
         }
-        EditorKey::Save => {
+        Command::Save => {
             let ret = if buffer.get_filepath().is_none() {
                 match prompt(reader, screen, buffer, message_bar, "Save as: ".to_string()) {
                     Ok(path) => buffer.save_file(path),
@@ -212,27 +266,23 @@ fn process_key_press(
                 }
             }
         }
-        EditorKey::ArrowDown => screen.down(buffer),
-        EditorKey::ArrowUp => screen.up(buffer),
-        EditorKey::ArrowLeft => screen.left(buffer),
-        EditorKey::ArrowRight => screen.right(buffer),
-        EditorKey::PageUp => screen.page_up(buffer),
-        EditorKey::PageDown => screen.page_down(buffer),
-        EditorKey::Home => screen.home(buffer),
-        EditorKey::Enter => screen.insert_new_line(buffer),
-        EditorKey::End => screen.end(buffer),
-        EditorKey::Delete => {
+        Command::ArrowDown => screen.down(buffer),
+        Command::ArrowUp => screen.up(buffer),
+        Command::ArrowLeft => screen.left(buffer),
+        Command::ArrowRight => screen.right(buffer),
+        Command::PageUp => screen.page_up(buffer),
+        Command::PageDown => screen.page_down(buffer),
+        Command::Home => screen.home(buffer),
+        Command::Enter => screen.insert_new_line(buffer),
+        Command::End => screen.end(buffer),
+        Command::Delete => {
             screen.right(buffer);
             screen.delete_char(buffer);
         }
-        EditorKey::Backspace => {
-            screen.delete_char(buffer);
-        }
-        EditorKey::OtherKey(c) => match c {
-            '\x0c' => {} // ctrl+l
-            '\x1b' => {} // esc
-            key => screen.insert_char(buffer, key),
-        },
+        Command::Backspace => screen.delete_char(buffer),
+        Command::Input(c) => screen.insert_char(buffer, c),
+        Command::Escape => {}
+        Command::Noop => {}
     }
 
     screen.adjust(buffer);
@@ -260,11 +310,11 @@ pub fn prompt(
                 message_bar.set("".to_string(), SystemTime::now());
                 return Ok(input);
             }
-            EditorKey::OtherKey('\x1b') => {
+            EditorKey::Escape => {
                 message_bar.set("aborted".to_string(), SystemTime::now());
                 return Err(Error::other("aborted"));
             }
-            EditorKey::OtherKey(c) => {
+            EditorKey::NormalKey(c) => {
                 input.push(c);
                 buf.push(c);
                 message_bar.set(buf.clone(), SystemTime::now());
@@ -288,13 +338,14 @@ fn run(args: Vec<String>) -> Result<(), Error> {
     loop {
         refresh_screen(&config.screen, &config.buffer, &config.message_bar)?;
         let key = read_editor_key(&mut stdin)?;
+        let command = resolve_command(key);
         match process_key_press(
             &mut stdin,
             &mut config.screen,
             &mut config.buffer,
             &mut config.message_bar,
             &mut quit_times,
-            key,
+            command,
         ) {
             Err(_) => break,
             Ok(_) => continue,
