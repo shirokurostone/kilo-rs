@@ -159,6 +159,10 @@ mod tests {
             Command::Save,
             resolve_command(EditorKey::ControlSequence('s'))
         );
+        assert_eq!(
+            Command::Find,
+            resolve_command(EditorKey::ControlSequence('f'))
+        );
     }
 }
 
@@ -184,6 +188,7 @@ enum EditorKey {
 enum Command {
     Exit,
     Save,
+    Find,
     ArrowLeft,
     ArrowRight,
     ArrowUp,
@@ -202,6 +207,7 @@ enum Command {
 
 fn resolve_command(key: EditorKey) -> Command {
     match key {
+        EditorKey::ControlSequence('f') => Command::Find,
         EditorKey::ControlSequence('h') => Command::Backspace,
         EditorKey::ControlSequence('m') => Command::Enter,
         EditorKey::ControlSequence('q') => Command::Exit,
@@ -246,8 +252,18 @@ fn process_key_press(
             return Err(Error::other("exit"));
         }
         Command::Save => {
+            let mut callback =
+                |_: &str, _: EditorKey, _: &mut EditorScreen, _: &mut EditorBuffer| {};
+
             let ret = if buffer.get_filepath().is_none() {
-                match prompt(reader, screen, buffer, message_bar, "Save as: ".to_string()) {
+                match prompt(
+                    reader,
+                    screen,
+                    buffer,
+                    message_bar,
+                    "Save as: ",
+                    &mut callback,
+                ) {
                     Ok(path) => buffer.save_file(path),
                     Err(_) => return Ok(()),
                 }
@@ -264,6 +280,31 @@ fn process_key_press(
                     let err_message = format!("Can't save! I/O error: {}", err);
                     message_bar.set(err_message, SystemTime::now());
                 }
+            }
+        }
+        Command::Find => {
+            let mut callback = |query: &str,
+                                key: EditorKey,
+                                screen: &mut EditorScreen,
+                                buffer: &mut EditorBuffer| {
+                if let EditorKey::NormalKey(_) = key {
+                    screen.find(query, buffer);
+                    screen.adjust(buffer);
+                }
+            };
+
+            match prompt(
+                reader,
+                screen,
+                buffer,
+                message_bar,
+                "Search: ",
+                &mut callback,
+            ) {
+                Ok(query) => {
+                    screen.find(&query, buffer);
+                }
+                Err(_) => return Ok(()),
             }
         }
         Command::ArrowDown => screen.down(buffer),
@@ -291,15 +332,19 @@ fn process_key_press(
     Ok(())
 }
 
-pub fn prompt(
+pub fn prompt<T>(
     reader: &mut dyn Read,
-    screen: &EditorScreen,
-    buffer: &EditorBuffer,
+    screen: &mut EditorScreen,
+    buffer: &mut EditorBuffer,
     message_bar: &mut MessageBar,
-    prompt: String,
-) -> Result<String, Error> {
+    prompt: &str,
+    callback: &mut T,
+) -> Result<String, Error>
+where
+    T: FnMut(&str, EditorKey, &mut EditorScreen, &mut EditorBuffer),
+{
     let mut input = String::new();
-    let mut buf = prompt.clone();
+    let mut buf = String::from(prompt);
 
     message_bar.set(buf.clone(), SystemTime::now());
 
@@ -308,16 +353,19 @@ pub fn prompt(
         match read_editor_key(reader)? {
             EditorKey::Enter => {
                 message_bar.set("".to_string(), SystemTime::now());
+                callback(&input, EditorKey::Enter, screen, buffer);
                 return Ok(input);
             }
             EditorKey::Escape => {
                 message_bar.set("aborted".to_string(), SystemTime::now());
+                callback(&input, EditorKey::Escape, screen, buffer);
                 return Err(Error::other("aborted"));
             }
             EditorKey::NormalKey(c) => {
                 input.push(c);
                 buf.push(c);
                 message_bar.set(buf.clone(), SystemTime::now());
+                callback(&input, EditorKey::NormalKey(c), screen, buffer);
             }
             _ => {}
         }
