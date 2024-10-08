@@ -292,6 +292,8 @@ fn process_key_press(
                     screen.adjust(buffer);
                 }
             };
+            let (cx, cy) = screen.cursor();
+            let (offset_x, offset_y) = screen.offset();
 
             match prompt(
                 reader,
@@ -304,7 +306,12 @@ fn process_key_press(
                 Ok(query) => {
                     screen.find(&query, buffer);
                 }
-                Err(_) => return Ok(()),
+                Err(_) => {
+                    screen.set_cursor(cx, cy);
+                    screen.set_offset(offset_x, offset_y);
+                    screen.adjust(buffer);
+                    return Ok(());
+                }
             }
         }
         Command::ArrowDown => screen.down(buffer),

@@ -27,6 +27,24 @@ impl EditorScreen {
         }
     }
 
+    pub fn cursor(&self) -> (usize, usize) {
+        (self.cx, self.cy)
+    }
+
+    pub fn set_cursor(&mut self, x: usize, y: usize) {
+        self.cx = x;
+        self.cy = y;
+    }
+
+    pub fn offset(&self) -> (usize, usize) {
+        (self.offset_x, self.offset_y)
+    }
+
+    pub fn set_offset(&mut self, x: usize, y: usize) {
+        self.offset_x = x;
+        self.offset_y = y;
+    }
+
     pub fn init_screen_size(&mut self) -> Result<(), Error> {
         let size = crossterm::terminal::size()?;
 
