@@ -151,16 +151,34 @@ impl EditorScreen {
         }
     }
 
-    pub fn find(&mut self, query: &str, buffer: &mut EditorBuffer) {
-        for i in 0..buffer.len() {
+    pub fn find(&mut self, query: &str, buffer: &mut EditorBuffer) -> bool {
+        for i in self.cy..buffer.len() {
             if let Some(line) = buffer.get_line(i) {
-                if let Some(j) = line.find(query) {
-                    self.cx = j;
+                let begin = if i == self.cy { self.cx } else { 0 };
+
+                if let Some(j) = line[begin..line.len()].find(query) {
+                    self.cx = begin + j;
                     self.cy = i;
-                    return;
+                    return true;
                 }
             }
         }
+        false
+    }
+
+    pub fn rfind(&mut self, query: &str, buffer: &mut EditorBuffer) -> bool {
+        for i in (0..=self.cy).rev() {
+            if let Some(line) = buffer.get_line(i) {
+                let end = if i == self.cy { self.cx } else { line.len() };
+
+                if let Some(j) = line[0..end].rfind(query) {
+                    self.cx = j;
+                    self.cy = i;
+                    return true;
+                }
+            }
+        }
+        false
     }
 
     pub fn adjust(&mut self, buffer: &EditorBuffer) {

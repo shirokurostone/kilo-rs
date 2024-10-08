@@ -167,6 +167,12 @@ mod tests {
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
+enum Direction {
+    Up,
+    Down,
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
 enum EditorKey {
     ArrowLeft,
     ArrowRight,
@@ -283,13 +289,60 @@ fn process_key_press(
             }
         }
         Command::Find => {
+            let mut direction = Direction::Down;
+            let mut last_match = true;
             let mut callback = |query: &str,
                                 key: EditorKey,
                                 screen: &mut EditorScreen,
                                 buffer: &mut EditorBuffer| {
-                if let EditorKey::NormalKey(_) = key {
-                    screen.find(query, buffer);
-                    screen.adjust(buffer);
+                match key {
+                    EditorKey::ArrowUp | EditorKey::ArrowLeft => {
+                        direction = Direction::Up;
+                        if !last_match {
+                            if let Some(last_line) = buffer.get_line(buffer.len() - 1) {
+                                screen.set_cursor(last_line.len() - 1, buffer.len())
+                            }
+                        }
+                        let (cx, cy) = screen.cursor();
+                        screen.left(buffer);
+                        last_match = screen.rfind(query, buffer);
+                        if !last_match {
+                            screen.set_cursor(cx, cy)
+                        }
+                        screen.adjust(buffer);
+                    }
+                    EditorKey::ArrowDown | EditorKey::ArrowRight => {
+                        direction = Direction::Down;
+                        if !last_match {
+                            screen.set_cursor(0, 0);
+                        }
+                        let (cx, cy) = screen.cursor();
+                        screen.right(buffer);
+                        last_match = screen.find(query, buffer);
+                        if !last_match {
+                            screen.set_cursor(cx, cy)
+                        }
+                        screen.adjust(buffer);
+                    }
+                    _ => {
+                        if !last_match {
+                            match direction {
+                                Direction::Up => {
+                                    if let Some(last_line) = buffer.get_line(buffer.len() - 1) {
+                                        screen.set_cursor(last_line.len() - 1, buffer.len())
+                                    }
+                                }
+                                Direction::Down => {
+                                    screen.set_cursor(0, 0);
+                                }
+                            }
+                        }
+                        last_match = match direction {
+                            Direction::Up => screen.rfind(query, buffer),
+                            Direction::Down => screen.find(query, buffer),
+                        };
+                        screen.adjust(buffer);
+                    }
                 }
             };
             let (cx, cy) = screen.cursor();
@@ -303,9 +356,7 @@ fn process_key_press(
                 "Search: ",
                 &mut callback,
             ) {
-                Ok(query) => {
-                    screen.find(&query, buffer);
-                }
+                Ok(_) => {}
                 Err(_) => {
                     screen.set_cursor(cx, cy);
                     screen.set_offset(offset_x, offset_y);
@@ -374,7 +425,10 @@ where
                 message_bar.set(buf.clone(), SystemTime::now());
                 callback(&input, EditorKey::NormalKey(c), screen, buffer);
             }
-            _ => {}
+            key => {
+                message_bar.set(buf.clone(), SystemTime::now());
+                callback(&input, key, screen, buffer);
+            }
         }
     }
 }
