@@ -7,6 +7,7 @@ use std::os::unix::fs::MetadataExt;
 struct EditorLine {
     raw: String,
     render: String,
+    highlight: Vec<Highlight>,
 }
 
 impl EditorLine {
@@ -14,25 +15,30 @@ impl EditorLine {
         let mut el = EditorLine {
             raw: line,
             render: String::new(),
+            highlight: Vec::new(),
         };
 
         el.render = el.convert_render(&el.raw);
+        el.update_syntax();
         el
     }
 
     fn remove_char(&mut self, index: usize) {
         self.raw.remove(index);
         self.render = self.convert_render(&self.raw);
+        self.update_syntax();
     }
 
     fn insert_char(&mut self, index: usize, c: char) {
         self.raw.insert(index, c);
         self.render = self.convert_render(&self.raw);
+        self.update_syntax();
     }
 
     fn insert_str(&mut self, index: usize, str: &str) {
         self.raw.insert_str(index, str);
         self.render = self.convert_render(&self.raw);
+        self.update_syntax();
     }
 
     fn convert_render(&self, line: &str) -> String {
@@ -56,6 +62,36 @@ impl EditorLine {
         }
 
         render
+    }
+
+    fn update_syntax(&mut self) {
+        if self.render.len() != self.highlight.len() {
+            self.highlight.resize(self.render.len(), Highlight::Normal);
+        }
+
+        for i in 0..self.render.len() {
+            if let Some(c) = self.render.chars().nth(i) {
+                match c {
+                    '0'..='9' => self.highlight[i] = Highlight::Number,
+                    _ => self.highlight[i] = Highlight::Normal,
+                }
+            }
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Copy, Clone)]
+enum Highlight {
+    Normal,
+    Number,
+}
+
+impl Highlight {
+    fn color(&self) -> usize {
+        match self {
+            Highlight::Normal => 37,
+            Highlight::Number => 31,
+        }
     }
 }
 
@@ -87,8 +123,29 @@ impl EditorBuffer {
         self.lines.get(num).map(|el| el.raw.clone())
     }
 
-    pub fn get_render(&self, num: usize) -> Option<String> {
-        self.lines.get(num).map(|el| el.render.clone())
+    pub fn get_render(&self, num: usize, offset: usize, width: usize) -> Option<String> {
+        self.lines.get(num).map(|el| {
+            let mut output = String::new();
+
+            el.render
+                .chars()
+                .enumerate()
+                .skip(offset)
+                .take(width)
+                .for_each(|(i, c)| match el.highlight[i] {
+                    Highlight::Normal => {
+                        output.push_str("\x1b[39m");
+                        output.push(c);
+                    }
+                    hi => {
+                        let s = format!("\x1b[{}m", hi.color());
+                        output.push_str(&s);
+                        output.push(c);
+                    }
+                });
+            output.push_str("\x1b[39m");
+            output
+        })
     }
 
     pub fn get_filepath(&self) -> Option<String> {

@@ -289,13 +289,8 @@ fn draw_rows(screen: &EditorScreen, buffer: &EditorBuffer, buf: &mut String) -> 
         let file_line_no = i + screen.offset_y;
 
         if file_line_no < buffer.len() {
-            if let Some(render) = buffer.get_render(file_line_no) {
-                let l: String = render
-                    .chars()
-                    .skip(screen.offset_x)
-                    .take(screen.width)
-                    .collect();
-                buf.push_str(&l);
+            if let Some(render) = buffer.get_render(file_line_no, screen.offset_x, screen.width) {
+                buf.push_str(&render);
             }
         } else if buffer.is_empty() && i == screen.height / 3 {
             let title = format!("kilo-rs -- version {}", KILO_VERSION);
