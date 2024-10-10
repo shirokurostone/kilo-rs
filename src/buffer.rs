@@ -19,26 +19,26 @@ impl EditorLine {
         };
 
         el.render = el.convert_render(&el.raw);
-        el.update_syntax();
+        el.clear_highlight();
         el
     }
 
     fn remove_char(&mut self, index: usize) {
         self.raw.remove(index);
         self.render = self.convert_render(&self.raw);
-        self.update_syntax();
+        self.clear_highlight();
     }
 
     fn insert_char(&mut self, index: usize, c: char) {
         self.raw.insert(index, c);
         self.render = self.convert_render(&self.raw);
-        self.update_syntax();
+        self.clear_highlight();
     }
 
     fn insert_str(&mut self, index: usize, str: &str) {
         self.raw.insert_str(index, str);
         self.render = self.convert_render(&self.raw);
-        self.update_syntax();
+        self.clear_highlight();
     }
 
     fn convert_render(&self, line: &str) -> String {
@@ -64,7 +64,7 @@ impl EditorLine {
         render
     }
 
-    fn update_syntax(&mut self) {
+    pub fn clear_highlight(&mut self) {
         if self.render.len() != self.highlight.len() {
             self.highlight.resize(self.render.len(), Highlight::Normal);
         }
@@ -78,12 +78,19 @@ impl EditorLine {
             }
         }
     }
+
+    fn highlight(&mut self, begin: usize, end: usize, highlight: Highlight) {
+        for i in begin..end {
+            self.highlight[i] = highlight;
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
-enum Highlight {
+pub enum Highlight {
     Normal,
     Number,
+    Match,
 }
 
 impl Highlight {
@@ -91,6 +98,7 @@ impl Highlight {
         match self {
             Highlight::Normal => 37,
             Highlight::Number => 31,
+            Highlight::Match => 34,
         }
     }
 }
@@ -121,6 +129,16 @@ impl EditorBuffer {
 
     pub fn get_line(&self, num: usize) -> Option<String> {
         self.lines.get(num).map(|el| el.raw.clone())
+    }
+
+    pub fn clear_highlight(&mut self, cy: usize) {
+        self.lines[cy].clear_highlight();
+    }
+
+    pub fn highlight(&mut self, cx: usize, cy: usize, width: usize, highlight: Highlight) {
+        let begin = self.cx_to_rx(cx, cy);
+        let end = self.cx_to_rx(cx + width, cy);
+        self.lines[cy].highlight(begin, end, highlight);
     }
 
     pub fn get_render(&self, num: usize, offset: usize, width: usize) -> Option<String> {

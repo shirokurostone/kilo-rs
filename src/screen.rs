@@ -1,5 +1,5 @@
 use crate::buffer::EditorBuffer;
-use crate::{KILO_VERSION, TAB_STOP};
+use crate::KILO_VERSION;
 use std::io::{stdout, Error, Write};
 use std::time::SystemTime;
 

@@ -1,7 +1,7 @@
 mod buffer;
 mod screen;
 
-use crate::buffer::EditorBuffer;
+use crate::buffer::{EditorBuffer, Highlight};
 use crate::screen::{refresh_screen, EditorScreen, MessageBar};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use std::io::{stdin, stdout, Error, Read, Write};
@@ -306,8 +306,12 @@ fn process_key_press(
                         let (cx, cy) = screen.cursor();
                         screen.left(buffer);
                         last_match = screen.rfind(query, buffer);
-                        if !last_match {
-                            screen.set_cursor(cx, cy)
+                        if last_match {
+                            buffer.clear_highlight(cy);
+                            let cur = screen.cursor();
+                            buffer.highlight(cur.0, cur.1, query.len(), Highlight::Match);
+                        } else {
+                            screen.set_cursor(cx, cy);
                         }
                         screen.adjust(buffer);
                     }
@@ -319,8 +323,12 @@ fn process_key_press(
                         let (cx, cy) = screen.cursor();
                         screen.right(buffer);
                         last_match = screen.find(query, buffer);
-                        if !last_match {
-                            screen.set_cursor(cx, cy)
+                        if last_match {
+                            buffer.clear_highlight(cy);
+                            let cur = screen.cursor();
+                            buffer.highlight(cur.0, cur.1, query.len(), Highlight::Match);
+                        } else {
+                            screen.set_cursor(cx, cy);
                         }
                         screen.adjust(buffer);
                     }
@@ -337,10 +345,16 @@ fn process_key_press(
                                 }
                             }
                         }
+                        let (_, cy) = screen.cursor();
                         last_match = match direction {
                             Direction::Up => screen.rfind(query, buffer),
                             Direction::Down => screen.find(query, buffer),
                         };
+                        buffer.clear_highlight(cy);
+                        if last_match {
+                            let cur = screen.cursor();
+                            buffer.highlight(cur.0, cur.1, query.len(), Highlight::Match);
+                        }
                         screen.adjust(buffer);
                     }
                 }
