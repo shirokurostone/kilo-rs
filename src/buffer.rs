@@ -126,6 +126,7 @@ impl EditorBuffer {
     pub fn get_render(&self, num: usize, offset: usize, width: usize) -> Option<String> {
         self.lines.get(num).map(|el| {
             let mut output = String::new();
+            let mut current_color = Highlight::Normal;
 
             el.render
                 .chars()
@@ -134,12 +135,18 @@ impl EditorBuffer {
                 .take(width)
                 .for_each(|(i, c)| match el.highlight[i] {
                     Highlight::Normal => {
-                        output.push_str("\x1b[39m");
+                        if current_color != Highlight::Normal {
+                            output.push_str("\x1b[39m");
+                            current_color = Highlight::Normal;
+                        }
                         output.push(c);
                     }
                     hi => {
-                        let s = format!("\x1b[{}m", hi.color());
-                        output.push_str(&s);
+                        if current_color != hi {
+                            let s = format!("\x1b[{}m", hi.color());
+                            output.push_str(&s);
+                            current_color = hi;
+                        }
                         output.push(c);
                     }
                 });
