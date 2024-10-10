@@ -191,7 +191,7 @@ impl EditorScreen {
         }
 
         if self.cy < buffer.len() {
-            self.rx = self.cx_to_rx(buffer);
+            self.rx = buffer.cx_to_rx(self.cx, self.cy);
         }
 
         if self.rx < self.offset_x {
@@ -207,19 +207,6 @@ impl EditorScreen {
         if self.cy >= self.offset_y + self.height {
             self.offset_y = self.cy - self.height + 1;
         }
-    }
-
-    fn cx_to_rx(&self, buffer: &EditorBuffer) -> usize {
-        let mut rx = 0;
-        if let Some(line) = buffer.get_line(self.cy) {
-            for c in line.chars().take(self.cx) {
-                if c == '\t' {
-                    rx += (TAB_STOP - 1) - (rx % TAB_STOP);
-                }
-                rx += 1;
-            }
-        }
-        rx
     }
 }
 
@@ -370,18 +357,6 @@ fn draw_messagebar(message_bar: &MessageBar, buf: &mut String) -> Result<(), Err
 #[cfg(test)]
 mod tests {
     use super::{EditorBuffer, EditorScreen};
-
-    #[test]
-    fn test_cx_to_rx() {
-        let mut screen = EditorScreen::new();
-        screen.cx = 4;
-
-        let mut buffer = EditorBuffer::new();
-        buffer.load_string("123\t456".to_string());
-
-        let rx = screen.cx_to_rx(&buffer);
-        assert_eq!(8, rx);
-    }
 
     #[test]
     fn test_adjust() {

@@ -252,6 +252,19 @@ impl EditorBuffer {
             self.dirty = true;
         }
     }
+
+    pub fn cx_to_rx(&self, cx: usize, cy: usize) -> usize {
+        let mut rx = 0;
+        if let Some(line) = self.get_line(cy) {
+            for c in line.chars().take(cx) {
+                if c == '\t' {
+                    rx += (TAB_STOP - 1) - (rx % TAB_STOP);
+                }
+                rx += 1;
+            }
+        }
+        rx
+    }
 }
 
 impl Default for EditorBuffer {
@@ -262,7 +275,7 @@ impl Default for EditorBuffer {
 
 #[cfg(test)]
 mod tests {
-    use super::EditorLine;
+    use super::{EditorBuffer, EditorLine};
 
     #[test]
     fn test_convert_render() {
@@ -279,5 +292,14 @@ mod tests {
         assert_eq!("123456  ", el.convert_render("123456\t"));
         assert_eq!("1234567 ", el.convert_render("1234567\t"));
         assert_eq!("12345678        ", el.convert_render("12345678\t"));
+    }
+
+    #[test]
+    fn test_cx_to_rx() {
+        let mut buffer = EditorBuffer::new();
+        buffer.load_string("123\t456".to_string());
+
+        let rx = buffer.cx_to_rx(4, 0);
+        assert_eq!(8, rx);
     }
 }
