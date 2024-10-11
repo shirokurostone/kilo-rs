@@ -3,6 +3,28 @@ use std::fs::File;
 use std::io::{BufRead, BufReader, Error, Write};
 use std::os::unix::fs::MetadataExt;
 
+fn is_separator(c: char) -> bool {
+    c == ' '
+        || c == '\t'
+        || c == '\r'
+        || c == '\n'
+        || c == '\0'
+        || c == ','
+        || c == '.'
+        || c == '('
+        || c == ')'
+        || c == '+'
+        || c == '-'
+        || c == '/'
+        || c == '*'
+        || c == '='
+        || c == '%'
+        || c == '<'
+        || c == '>'
+        || c == '['
+        || c == ']'
+}
+
 #[derive(Debug, PartialEq)]
 struct EditorLine {
     raw: String,
@@ -69,12 +91,21 @@ impl EditorLine {
             self.highlight.resize(self.render.len(), Highlight::Normal);
         }
 
+        let mut prev_highlight = Highlight::Normal;
+        let mut prev_separator = true;
         for i in 0..self.render.len() {
             if let Some(c) = self.render.chars().nth(i) {
-                match c {
-                    '0'..='9' => self.highlight[i] = Highlight::Number,
-                    _ => self.highlight[i] = Highlight::Normal,
+                if '0' <= c && c <= '9' && (prev_separator || prev_highlight == Highlight::Number) {
+                    self.highlight[i] = Highlight::Number;
+                    prev_separator = false;
+                } else if c == '.' && prev_highlight == Highlight::Number {
+                    self.highlight[i] = Highlight::Number;
+                    prev_separator = false;
+                } else {
+                    self.highlight[i] = Highlight::Normal;
+                    prev_separator = is_separator(c);
                 }
+                prev_highlight = self.highlight[i];
             }
         }
     }
