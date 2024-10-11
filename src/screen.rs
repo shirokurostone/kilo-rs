@@ -324,7 +324,12 @@ fn draw_statusbar(
     } else {
         buf.push_str(&status);
 
-        let right_status = format!("{}/{}", screen.cy + 1, buffer.len());
+        let right_status = format!(
+            "{} | {}/{}",
+            buffer.get_file_type().map_or("no ft", |ft| ft.to_str()),
+            screen.cy + 1,
+            buffer.len()
+        );
         if screen.width as isize - status.len() as isize - right_status.len() as isize > 0 {
             for _ in 0..(screen.width - status.len() - right_status.len()) {
                 buf.push(' ');

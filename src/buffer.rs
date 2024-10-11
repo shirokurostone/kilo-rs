@@ -3,6 +3,51 @@ use std::fs::File;
 use std::io::{BufRead, BufReader, Error, Write};
 use std::os::unix::fs::MetadataExt;
 
+#[derive(Debug, PartialEq, Copy, Clone)]
+enum HighlightType {
+    Number,
+}
+
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub enum FileType {
+    C,
+}
+impl FileType {
+    fn select_file_type(filepath: &str) -> Option<FileType> {
+        let file_types = [FileType::C];
+
+        for ft in file_types {
+            for extension in ft.extension() {
+                if filepath.ends_with(extension) {
+                    return Some(ft);
+                }
+            }
+        }
+
+        None
+    }
+
+    fn extension(&self) -> Vec<&'static str> {
+        match self {
+            FileType::C => vec![".c", ".h", ".cpp"],
+        }
+    }
+
+    fn is_highlight(&self, highlight_type: HighlightType) -> bool {
+        match self {
+            FileType::C => match highlight_type {
+                HighlightType::Number => true,
+            },
+        }
+    }
+
+    pub fn to_str(&self) -> &'static str {
+        match self {
+            FileType::C => "C",
+        }
+    }
+}
+
 fn is_separator(c: char) -> bool {
     c == ' '
         || c == '\t'
@@ -30,14 +75,16 @@ struct EditorLine {
     raw: String,
     render: String,
     highlight: Vec<Highlight>,
+    file_type: Option<FileType>,
 }
 
 impl EditorLine {
-    fn new(line: String) -> EditorLine {
+    fn new(line: String, file_type: Option<FileType>) -> EditorLine {
         let mut el = EditorLine {
             raw: line,
             render: String::new(),
             highlight: Vec::new(),
+            file_type,
         };
 
         el.render = el.convert_render(&el.raw);
@@ -95,15 +142,21 @@ impl EditorLine {
         let mut prev_separator = true;
         for i in 0..self.render.len() {
             if let Some(c) = self.render.chars().nth(i) {
-                if '0' <= c && c <= '9' && (prev_separator || prev_highlight == Highlight::Number) {
-                    self.highlight[i] = Highlight::Number;
-                    prev_separator = false;
-                } else if c == '.' && prev_highlight == Highlight::Number {
-                    self.highlight[i] = Highlight::Number;
-                    prev_separator = false;
-                } else {
-                    self.highlight[i] = Highlight::Normal;
-                    prev_separator = is_separator(c);
+                if let Some(file_type) = self.file_type {
+                    if file_type.is_highlight(HighlightType::Number) {
+                        if ('0'..='9').contains(&c)
+                            && (prev_separator || prev_highlight == Highlight::Number)
+                        {
+                            self.highlight[i] = Highlight::Number;
+                            prev_separator = false;
+                        } else if c == '.' && prev_highlight == Highlight::Number {
+                            self.highlight[i] = Highlight::Number;
+                            prev_separator = false;
+                        } else {
+                            self.highlight[i] = Highlight::Normal;
+                            prev_separator = is_separator(c);
+                        }
+                    }
                 }
                 prev_highlight = self.highlight[i];
             }
@@ -139,6 +192,7 @@ pub struct EditorBuffer {
     lines: Vec<EditorLine>,
     filepath: Option<String>,
     dirty: bool,
+    file_type: Option<FileType>,
 }
 
 impl EditorBuffer {
@@ -147,7 +201,12 @@ impl EditorBuffer {
             lines: Vec::new(),
             filepath: None,
             dirty: false,
+            file_type: None,
         }
+    }
+
+    pub fn get_file_type(&self) -> Option<FileType> {
+        self.file_type.clone()
     }
 
     pub fn len(&self) -> usize {
@@ -217,8 +276,11 @@ impl EditorBuffer {
 
         let file = File::open(&path)?;
         let file_reader = BufReader::new(file);
+        self.file_type = FileType::select_file_type(&path);
         for ret in file_reader.lines() {
-            lines.push(EditorLine::new(ret?));
+            let mut el = EditorLine::new(ret?, self.file_type);
+            el.clear_highlight();
+            lines.push(el);
         }
 
         self.lines = lines;
@@ -240,6 +302,11 @@ impl EditorBuffer {
         )?;
         file.flush()?;
         self.filepath = Some(path.clone());
+        self.file_type = FileType::select_file_type(&path);
+        for line in &mut self.lines {
+            line.file_type = self.file_type;
+            line.clear_highlight();
+        }
         self.dirty = false;
 
         Ok(file.metadata()?.size())
@@ -257,16 +324,22 @@ impl EditorBuffer {
         let mut lines: Vec<EditorLine> = Vec::new();
 
         for line in text.lines() {
-            lines.push(EditorLine::new(line.to_string()));
+            lines.push(EditorLine::new(line.to_string(), None));
         }
 
         self.lines = lines;
         self.filepath = None;
+        self.file_type = None;
+        for line in &mut self.lines {
+            line.file_type = self.file_type;
+            line.clear_highlight();
+        }
         self.dirty = false;
     }
 
     pub fn insert_line(&mut self, cy: usize, line: String) {
-        self.lines.insert(cy, EditorLine::new(line.to_string()));
+        self.lines
+            .insert(cy, EditorLine::new(line.to_string(), self.file_type));
         self.dirty = true;
     }
 
@@ -292,7 +365,7 @@ impl EditorBuffer {
     }
 
     pub fn replace_line(&mut self, cy: usize, new_line: String) {
-        self.lines[cy] = EditorLine::new(new_line);
+        self.lines[cy] = EditorLine::new(new_line, self.file_type);
     }
 
     pub fn append_string(&mut self, cx: usize, cy: usize, message: String) {
@@ -328,7 +401,7 @@ mod tests {
 
     #[test]
     fn test_convert_render() {
-        let el = EditorLine::new("".to_string());
+        let el = EditorLine::new("".to_string(), None);
 
         assert_eq!("hoge", el.convert_render("hoge"));
 
