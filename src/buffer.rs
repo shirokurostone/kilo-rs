@@ -8,6 +8,8 @@ enum HighlightType {
     Number,
     String,
     Comment,
+    Keyword1,
+    Keyword2,
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -35,12 +37,31 @@ impl FileType {
         }
     }
 
+    fn keyword1(&self) -> Vec<&'static str> {
+        match self {
+            FileType::C => vec![
+                "switch", "if", "while", "for", "break", "continue", "return", "else", "struct",
+                "union", "typedef", "static", "enum", "class", "case",
+            ],
+        }
+    }
+
+    fn keyword2(&self) -> Vec<&'static str> {
+        match self {
+            FileType::C => vec![
+                "int", "long", "double", "float", "char", "unsigned", "signed", "void",
+            ],
+        }
+    }
+
     fn is_highlight(&self, highlight_type: HighlightType) -> bool {
         match self {
             FileType::C => match highlight_type {
                 HighlightType::Number => true,
                 HighlightType::String => true,
                 HighlightType::Comment => true,
+                HighlightType::Keyword1 => true,
+                HighlightType::Keyword2 => true,
             },
         }
     }
@@ -153,7 +174,43 @@ impl EditorLine {
         let mut prev_char = '\0';
         let mut in_string = false;
         let mut quote = '\0';
-        for i in 0..self.render.len() {
+        let mut i = 0;
+
+        let mut keyword_func = |render: &String,
+                                highlight: &mut Vec<Highlight>,
+                                keywords: Vec<&'static str>,
+                                i: &mut usize,
+                                prev_highlight: &mut Highlight,
+                                keyword_highlight: Highlight|
+         -> bool {
+            for keyword in keywords {
+                let s: String = render.chars().skip(*i).take(keyword.len()).collect();
+                if keyword == s {
+                    if *i + keyword.len() == render.len() {
+                        for j in *i..*i + keyword.len() {
+                            highlight[j] = keyword_highlight;
+                        }
+                        *i += keyword.len();
+                        *prev_highlight = keyword_highlight;
+                        return true;
+                    } else if *i + keyword.len() + 1 < render.len() {
+                        if let Some(end) = render.chars().nth(*i + keyword.len() + 1) {
+                            if is_separator(end) {
+                                for j in *i..*i + keyword.len() {
+                                    highlight[j] = keyword_highlight;
+                                }
+                                *i += keyword.len();
+                                *prev_highlight = keyword_highlight;
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+            false
+        };
+
+        'char_loop: while i < self.render.len() {
             if let Some(c) = self.render.chars().nth(i) {
                 self.highlight[i] = Highlight::Normal;
                 if let Some(file_type) = self.file_type {
@@ -166,8 +223,6 @@ impl EditorLine {
                         } else if c == '.' && prev_highlight == Highlight::Number {
                             self.highlight[i] = Highlight::Number;
                             prev_separator = false;
-                        } else {
-                            prev_separator = is_separator(c);
                         }
                     }
                     if file_type.is_highlight(HighlightType::String) {
@@ -203,10 +258,42 @@ impl EditorLine {
                             }
                         }
                     }
+
+                    if file_type.is_highlight(HighlightType::Keyword1) {
+                        if prev_separator {
+                            if keyword_func(
+                                &self.render,
+                                &mut self.highlight,
+                                file_type.keyword1(),
+                                &mut i,
+                                &mut prev_highlight,
+                                Highlight::Keyword1,
+                            ) {
+                                continue 'char_loop;
+                            }
+                        }
+                    }
+
+                    if file_type.is_highlight(HighlightType::Keyword2) {
+                        if prev_separator {
+                            if keyword_func(
+                                &self.render,
+                                &mut self.highlight,
+                                file_type.keyword2(),
+                                &mut i,
+                                &mut prev_highlight,
+                                Highlight::Keyword2,
+                            ) {
+                                continue 'char_loop;
+                            }
+                        }
+                    }
                 }
+                prev_separator = is_separator(c);
                 prev_highlight = self.highlight[i];
                 prev_char = c;
             }
+            i += 1;
         }
     }
 
@@ -224,6 +311,8 @@ pub enum Highlight {
     Match,
     String,
     Comment,
+    Keyword1,
+    Keyword2,
 }
 
 impl Highlight {
@@ -234,6 +323,8 @@ impl Highlight {
             Highlight::Match => 34,
             Highlight::String => 35,
             Highlight::Comment => 36,
+            Highlight::Keyword1 => 33,
+            Highlight::Keyword2 => 32,
         }
     }
 }
