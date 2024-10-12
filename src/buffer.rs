@@ -6,6 +6,7 @@ use std::os::unix::fs::MetadataExt;
 #[derive(Debug, PartialEq, Copy, Clone)]
 enum HighlightType {
     Number,
+    String,
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -37,6 +38,7 @@ impl FileType {
         match self {
             FileType::C => match highlight_type {
                 HighlightType::Number => true,
+                HighlightType::String => true,
             },
         }
     }
@@ -140,8 +142,12 @@ impl EditorLine {
 
         let mut prev_highlight = Highlight::Normal;
         let mut prev_separator = true;
+        let mut prev_char = '\0';
+        let mut in_string = false;
+        let mut quote = '\0';
         for i in 0..self.render.len() {
             if let Some(c) = self.render.chars().nth(i) {
+                self.highlight[i] = Highlight::Normal;
                 if let Some(file_type) = self.file_type {
                     if file_type.is_highlight(HighlightType::Number) {
                         if ('0'..='9').contains(&c)
@@ -153,12 +159,27 @@ impl EditorLine {
                             self.highlight[i] = Highlight::Number;
                             prev_separator = false;
                         } else {
-                            self.highlight[i] = Highlight::Normal;
                             prev_separator = is_separator(c);
+                        }
+                    }
+                    if file_type.is_highlight(HighlightType::String) {
+                        if in_string {
+                            self.highlight[i] = Highlight::String;
+                            if c == quote && prev_char != '\\' {
+                                in_string = false;
+                            }
+                            prev_separator = true;
+                        } else {
+                            if c == '\'' || c == '"' {
+                                in_string = true;
+                                quote = c;
+                                self.highlight[i] = Highlight::String;
+                            }
                         }
                     }
                 }
                 prev_highlight = self.highlight[i];
+                prev_char = c;
             }
         }
     }
@@ -175,6 +196,7 @@ pub enum Highlight {
     Normal,
     Number,
     Match,
+    String,
 }
 
 impl Highlight {
@@ -183,6 +205,7 @@ impl Highlight {
             Highlight::Normal => 37,
             Highlight::Number => 31,
             Highlight::Match => 34,
+            Highlight::String => 35,
         }
     }
 }
