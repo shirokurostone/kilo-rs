@@ -7,6 +7,7 @@ use std::os::unix::fs::MetadataExt;
 enum HighlightType {
     Number,
     String,
+    Comment,
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -39,7 +40,14 @@ impl FileType {
             FileType::C => match highlight_type {
                 HighlightType::Number => true,
                 HighlightType::String => true,
+                HighlightType::Comment => true,
             },
+        }
+    }
+
+    fn singleline_comment_start(&self) -> Option<&'static str> {
+        match self {
+            FileType::C => Some("//"),
         }
     }
 
@@ -177,6 +185,24 @@ impl EditorLine {
                             }
                         }
                     }
+                    if file_type.is_highlight(HighlightType::Comment) {
+                        if !in_string {
+                            if let Some(comment_start) = file_type.singleline_comment_start() {
+                                let s: String = self
+                                    .render
+                                    .chars()
+                                    .skip(i)
+                                    .take(comment_start.len())
+                                    .collect();
+                                if comment_start == s {
+                                    for j in i..self.render.len() {
+                                        self.highlight[j] = Highlight::Comment;
+                                    }
+                                    return;
+                                }
+                            }
+                        }
+                    }
                 }
                 prev_highlight = self.highlight[i];
                 prev_char = c;
@@ -197,6 +223,7 @@ pub enum Highlight {
     Number,
     Match,
     String,
+    Comment,
 }
 
 impl Highlight {
@@ -206,6 +233,7 @@ impl Highlight {
             Highlight::Number => 31,
             Highlight::Match => 34,
             Highlight::String => 35,
+            Highlight::Comment => 36,
         }
     }
 }
