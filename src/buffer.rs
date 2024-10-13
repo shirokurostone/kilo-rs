@@ -8,6 +8,7 @@ enum HighlightType {
     Number,
     String,
     Comment,
+    MultilineComment,
     Keyword1,
     Keyword2,
 }
@@ -60,6 +61,7 @@ impl FileType {
                 HighlightType::Number => true,
                 HighlightType::String => true,
                 HighlightType::Comment => true,
+                HighlightType::MultilineComment => true,
                 HighlightType::Keyword1 => true,
                 HighlightType::Keyword2 => true,
             },
@@ -69,6 +71,18 @@ impl FileType {
     fn singleline_comment_start(&self) -> Option<&'static str> {
         match self {
             FileType::C => Some("//"),
+        }
+    }
+
+    fn multiline_comment_start(&self) -> Option<&'static str> {
+        match self {
+            FileType::C => Some("/*"),
+        }
+    }
+
+    fn multiline_comment_end(&self) -> Option<&'static str> {
+        match self {
+            FileType::C => Some("*/"),
         }
     }
 
@@ -173,6 +187,7 @@ impl EditorLine {
         let mut prev_separator = true;
         let mut prev_char = '\0';
         let mut in_string = false;
+        let mut in_comment = false;
         let mut quote = '\0';
         let mut i = 0;
 
@@ -241,7 +256,7 @@ impl EditorLine {
                         }
                     }
                     if file_type.is_highlight(HighlightType::Comment) {
-                        if !in_string {
+                        if !in_string && !in_comment {
                             if let Some(comment_start) = file_type.singleline_comment_start() {
                                 let s: String = self
                                     .render
@@ -254,6 +269,46 @@ impl EditorLine {
                                         self.highlight[j] = Highlight::Comment;
                                     }
                                     return;
+                                }
+                            }
+                        }
+                    }
+
+                    if file_type.is_highlight(HighlightType::MultilineComment) {
+                        if !in_comment {
+                            if let Some(comment_start) = file_type.multiline_comment_start() {
+                                let s: String = self
+                                    .render
+                                    .chars()
+                                    .skip(i)
+                                    .take(comment_start.len())
+                                    .collect();
+                                if comment_start == s {
+                                    in_comment = true;
+                                    for j in i..i + comment_start.len() {
+                                        self.highlight[j] = Highlight::MultilineComment;
+                                    }
+                                    i += comment_start.len();
+                                    continue 'char_loop;
+                                }
+                            }
+                        } else {
+                            self.highlight[i] = Highlight::MultilineComment;
+                            if let Some(comment_end) = file_type.multiline_comment_end() {
+                                let s: String = self
+                                    .render
+                                    .chars()
+                                    .skip(i)
+                                    .take(comment_end.len())
+                                    .collect();
+                                if comment_end == s {
+                                    in_comment = false;
+                                    prev_separator = true;
+                                    for j in i..i + comment_end.len() {
+                                        self.highlight[j] = Highlight::MultilineComment;
+                                    }
+                                    i += comment_end.len();
+                                    continue 'char_loop;
                                 }
                             }
                         }
@@ -311,6 +366,7 @@ pub enum Highlight {
     Match,
     String,
     Comment,
+    MultilineComment,
     Keyword1,
     Keyword2,
 }
@@ -323,6 +379,7 @@ impl Highlight {
             Highlight::Match => 34,
             Highlight::String => 35,
             Highlight::Comment => 36,
+            Highlight::MultilineComment => 36,
             Highlight::Keyword1 => 33,
             Highlight::Keyword2 => 32,
         }
