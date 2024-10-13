@@ -121,6 +121,7 @@ impl EditorScreen {
             buffer.replace_line(self.cy, (current[0..self.cx]).to_string());
             buffer.insert_line(self.cy + 1, (current[self.cx..]).to_string());
         }
+        buffer.clear_highlight(self.cy);
         self.cx = 0;
         self.cy += 1;
     }

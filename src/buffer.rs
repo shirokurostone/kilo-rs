@@ -121,6 +121,7 @@ struct EditorLine {
     render: String,
     highlight: Vec<Highlight>,
     file_type: Option<FileType>,
+    open_comment: bool,
 }
 
 impl EditorLine {
@@ -130,29 +131,27 @@ impl EditorLine {
             render: String::new(),
             highlight: Vec::new(),
             file_type,
+            open_comment: false,
         };
 
         el.render = el.convert_render(&el.raw);
-        el.clear_highlight();
+        el.clear_highlight(false);
         el
     }
 
     fn remove_char(&mut self, index: usize) {
         self.raw.remove(index);
         self.render = self.convert_render(&self.raw);
-        self.clear_highlight();
     }
 
     fn insert_char(&mut self, index: usize, c: char) {
         self.raw.insert(index, c);
         self.render = self.convert_render(&self.raw);
-        self.clear_highlight();
     }
 
     fn insert_str(&mut self, index: usize, str: &str) {
         self.raw.insert_str(index, str);
         self.render = self.convert_render(&self.raw);
-        self.clear_highlight();
     }
 
     fn convert_render(&self, line: &str) -> String {
@@ -178,7 +177,7 @@ impl EditorLine {
         render
     }
 
-    pub fn clear_highlight(&mut self) {
+    pub fn clear_highlight(&mut self, open_comment: bool) -> bool {
         if self.render.len() != self.highlight.len() {
             self.highlight.resize(self.render.len(), Highlight::Normal);
         }
@@ -187,7 +186,7 @@ impl EditorLine {
         let mut prev_separator = true;
         let mut prev_char = '\0';
         let mut in_string = false;
-        let mut in_comment = false;
+        let mut in_comment = open_comment;
         let mut quote = '\0';
         let mut i = 0;
 
@@ -268,7 +267,8 @@ impl EditorLine {
                                     for j in i..self.render.len() {
                                         self.highlight[j] = Highlight::Comment;
                                     }
-                                    return;
+                                    self.open_comment = false;
+                                    return false;
                                 }
                             }
                         }
@@ -315,7 +315,7 @@ impl EditorLine {
                     }
 
                     if file_type.is_highlight(HighlightType::Keyword1) {
-                        if prev_separator {
+                        if prev_separator && !in_comment {
                             if keyword_func(
                                 &self.render,
                                 &mut self.highlight,
@@ -330,7 +330,7 @@ impl EditorLine {
                     }
 
                     if file_type.is_highlight(HighlightType::Keyword2) {
-                        if prev_separator {
+                        if prev_separator && !in_comment {
                             if keyword_func(
                                 &self.render,
                                 &mut self.highlight,
@@ -350,6 +350,9 @@ impl EditorLine {
             }
             i += 1;
         }
+
+        self.open_comment = in_comment;
+        in_comment
     }
 
     fn highlight(&mut self, begin: usize, end: usize, highlight: Highlight) {
@@ -421,7 +424,15 @@ impl EditorBuffer {
     }
 
     pub fn clear_highlight(&mut self, cy: usize) {
-        self.lines[cy].clear_highlight();
+        let mut open_comment = if cy == 0 {
+            false
+        } else {
+            self.lines[cy - 1].open_comment
+        };
+
+        for i in cy..self.lines.len() {
+            open_comment = self.lines[i].clear_highlight(open_comment);
+        }
     }
 
     pub fn highlight(&mut self, cx: usize, cy: usize, width: usize, highlight: Highlight) {
@@ -493,13 +504,13 @@ impl EditorBuffer {
         self.file_type = FileType::select_file_type(&path);
         for ret in file_reader.lines() {
             let mut el = EditorLine::new(ret?, self.file_type);
-            el.clear_highlight();
             lines.push(el);
         }
 
         self.lines = lines;
         self.filepath = Some(path.clone());
         self.dirty = false;
+        self.clear_highlight(0);
 
         Ok(())
     }
@@ -519,9 +530,9 @@ impl EditorBuffer {
         self.file_type = FileType::select_file_type(&path);
         for line in &mut self.lines {
             line.file_type = self.file_type;
-            line.clear_highlight();
         }
         self.dirty = false;
+        self.clear_highlight(0);
 
         Ok(file.metadata()?.size())
     }
@@ -546,9 +557,9 @@ impl EditorBuffer {
         self.file_type = None;
         for line in &mut self.lines {
             line.file_type = self.file_type;
-            line.clear_highlight();
         }
         self.dirty = false;
+        self.clear_highlight(0);
     }
 
     pub fn insert_line(&mut self, cy: usize, line: String) {
@@ -561,6 +572,7 @@ impl EditorBuffer {
         if let Some(el) = self.lines.get_mut(cy) {
             el.insert_char(cx, c);
             self.dirty = true;
+            self.clear_highlight(cy);
         }
     }
 
@@ -569,6 +581,7 @@ impl EditorBuffer {
             if cx < el.raw.len() {
                 el.remove_char(cx);
                 self.dirty = true;
+                self.clear_highlight(cy);
             }
         }
     }
@@ -586,6 +599,7 @@ impl EditorBuffer {
         if let Some(el) = self.lines.get_mut(cy) {
             el.insert_str(cx, &message);
             self.dirty = true;
+            self.clear_highlight(cy);
         }
     }
 
