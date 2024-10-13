@@ -383,21 +383,36 @@ impl EditorBuffer {
                 .enumerate()
                 .skip(offset)
                 .take(width)
-                .for_each(|(i, c)| match el.highlight[i] {
-                    Highlight::Normal => {
-                        if current_color != Highlight::Normal {
-                            output.push_str("\x1b[39m");
-                            current_color = Highlight::Normal;
+                .for_each(|(i, c)| {
+                    if c.is_ascii_control() {
+                        output.push_str("\x1b[7m");
+                        match c {
+                            '\x00' => output.push_str("@"),
+                            '\x01'..='\x1a' => output.push(((c as u8) + ('@' as u8)) as char),
+                            _ => output.push_str("?"),
                         }
-                        output.push(c);
-                    }
-                    hi => {
-                        if current_color != hi {
-                            let s = format!("\x1b[{}m", hi.color());
-                            output.push_str(&s);
-                            current_color = hi;
+                        output.push_str("\x1b[m");
+
+                        let s = format!("\x1b[{}m", current_color.color());
+                        output.push_str(&s);
+                    } else {
+                        match el.highlight[i] {
+                            Highlight::Normal => {
+                                if current_color != Highlight::Normal {
+                                    output.push_str("\x1b[39m");
+                                    current_color = Highlight::Normal;
+                                }
+                                output.push(c);
+                            }
+                            hi => {
+                                if current_color != hi {
+                                    let s = format!("\x1b[{}m", hi.color());
+                                    output.push_str(&s);
+                                    current_color = hi;
+                                }
+                                output.push(c);
+                            }
                         }
-                        output.push(c);
                     }
                 });
             output.push_str("\x1b[39m");
