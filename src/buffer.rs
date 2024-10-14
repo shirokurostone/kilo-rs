@@ -190,12 +190,12 @@ impl EditorLine {
         let mut quote = '\0';
         let mut i = 0;
 
-        let mut keyword_func = |render: &String,
-                                highlight: &mut Vec<Highlight>,
-                                keywords: Vec<&'static str>,
-                                i: &mut usize,
-                                prev_highlight: &mut Highlight,
-                                keyword_highlight: Highlight|
+        let keyword_func = |render: &String,
+                            highlight: &mut Vec<Highlight>,
+                            keywords: Vec<&'static str>,
+                            i: &mut usize,
+                            prev_highlight: &mut Highlight,
+                            keyword_highlight: Highlight|
          -> bool {
             for keyword in keywords {
                 let s: String = render.chars().skip(*i).take(keyword.len()).collect();
@@ -229,7 +229,7 @@ impl EditorLine {
                 self.highlight[i] = Highlight::Normal;
                 if let Some(file_type) = self.file_type {
                     if file_type.is_highlight(HighlightType::Number) {
-                        if ('0'..='9').contains(&c)
+                        if c.is_ascii_digit()
                             && (prev_separator || prev_highlight == Highlight::Number)
                         {
                             self.highlight[i] = Highlight::Number;
@@ -408,7 +408,7 @@ impl EditorBuffer {
     }
 
     pub fn get_file_type(&self) -> Option<FileType> {
-        self.file_type.clone()
+        self.file_type
     }
 
     pub fn len(&self) -> usize {
@@ -455,9 +455,9 @@ impl EditorBuffer {
                     if c.is_ascii_control() {
                         output.push_str("\x1b[7m");
                         match c {
-                            '\x00' => output.push_str("@"),
-                            '\x01'..='\x1a' => output.push(((c as u8) + ('@' as u8)) as char),
-                            _ => output.push_str("?"),
+                            '\x00' => output.push('@'),
+                            '\x01'..='\x1a' => output.push(((c as u8) + b'@') as char),
+                            _ => output.push('?'),
                         }
                         output.push_str("\x1b[m");
 
@@ -503,7 +503,7 @@ impl EditorBuffer {
         let file_reader = BufReader::new(file);
         self.file_type = FileType::select_file_type(&path);
         for ret in file_reader.lines() {
-            let mut el = EditorLine::new(ret?, self.file_type);
+            let el = EditorLine::new(ret?, self.file_type);
             lines.push(el);
         }
 
