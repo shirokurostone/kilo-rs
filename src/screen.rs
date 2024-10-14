@@ -3,6 +3,10 @@ use crate::KILO_VERSION;
 use std::io::{stdout, Error, Write};
 use std::time::SystemTime;
 
+trait Drawable {
+    fn draw(&self, buf: &mut String) -> Result<(), Error>;
+}
+
 #[derive(Debug, PartialEq)]
 pub struct EditorScreen {
     cx: usize,
@@ -243,19 +247,34 @@ impl MessageBar {
     }
 }
 
+impl Drawable for MessageBar {
+    fn draw(&self, buf: &mut String) -> Result<(), Error> {
+        buf.push_str("\x1b[K");
+
+        let now = SystemTime::now();
+        if let Some(message) = self.get_message(now) {
+            buf.push_str(&message);
+        }
+
+        Ok(())
+    }
+}
+
 pub fn refresh_screen(
     screen: &EditorScreen,
     buffer: &EditorBuffer,
     message_bar: &MessageBar,
 ) -> Result<(), Error> {
     let mut buf = String::new();
+    let rows = Rows { screen, buffer };
+    let status_bar = StatusBar { screen, buffer };
 
     buf.push_str("\x1b[?25l");
     buf.push_str("\x1b[H");
 
-    draw_rows(screen, buffer, &mut buf)?;
-    draw_statusbar(screen, buffer, &mut buf)?;
-    draw_messagebar(message_bar, &mut buf)?;
+    rows.draw(&mut buf)?;
+    status_bar.draw(&mut buf)?;
+    message_bar.draw(&mut buf)?;
 
     let cursor = format!(
         "\x1b[{};{}H",
@@ -272,92 +291,101 @@ pub fn refresh_screen(
     Ok(())
 }
 
-fn draw_rows(screen: &EditorScreen, buffer: &EditorBuffer, buf: &mut String) -> Result<(), Error> {
-    for i in 0..screen.height {
-        let file_line_no = i + screen.offset_y;
+struct Rows<'a> {
+    screen: &'a EditorScreen,
+    buffer: &'a EditorBuffer,
+}
 
-        if file_line_no < buffer.len() {
-            if let Some(render) = buffer.get_render(file_line_no, screen.offset_x, screen.width) {
-                buf.push_str(&render);
-            }
-        } else if buffer.is_empty() && i == screen.height / 3 {
-            let title = format!("kilo-rs -- version {}", KILO_VERSION);
-            let t: String = title.chars().take(screen.width).collect();
-            let mut padding = (screen.width - t.len()) / 2;
-            if padding > 0 {
+impl Drawable for Rows<'_> {
+    fn draw(&self, buf: &mut String) -> Result<(), Error> {
+        for i in 0..self.screen.height {
+            let file_line_no = i + self.screen.offset_y;
+
+            if file_line_no < self.buffer.len() {
+                if let Some(render) =
+                    self.buffer
+                        .get_render(file_line_no, self.screen.offset_x, self.screen.width)
+                {
+                    buf.push_str(&render);
+                }
+            } else if self.buffer.is_empty() && i == self.screen.height / 3 {
+                let title = format!("kilo-rs -- version {}", KILO_VERSION);
+                let t: String = title.chars().take(self.screen.width).collect();
+                let mut padding = (self.screen.width - t.len()) / 2;
+                if padding > 0 {
+                    buf.push('~');
+                    padding -= 1;
+                }
+                for _ in 0..padding {
+                    buf.push(' ');
+                }
+                buf.push_str(&t);
+            } else {
                 buf.push('~');
-                padding -= 1;
             }
-            for _ in 0..padding {
-                buf.push(' ');
-            }
-            buf.push_str(&t);
-        } else {
-            buf.push('~');
+
+            buf.push_str("\x1b[K");
+            buf.push_str("\r\n");
         }
 
-        buf.push_str("\x1b[K");
-        buf.push_str("\r\n");
+        Ok(())
     }
-
-    Ok(())
 }
 
-fn draw_statusbar(
-    screen: &EditorScreen,
-    buffer: &EditorBuffer,
-    buf: &mut String,
-) -> Result<(), Error> {
-    buf.push_str("\x1b[7m");
+struct StatusBar<'a> {
+    screen: &'a EditorScreen,
+    buffer: &'a EditorBuffer,
+}
 
-    let status = format!(
-        "{:<20} - {} lines {}",
-        buffer
-            .get_filepath()
-            .unwrap_or_else(|| "[No Name]".to_string()),
-        screen.height,
-        if buffer.is_dirty() { "(modified)" } else { "" }
-    );
+impl Drawable for StatusBar<'_> {
+    fn draw(&self, buf: &mut String) -> Result<(), Error> {
+        buf.push_str("\x1b[7m");
 
-    if screen.width < status.len() {
-        let s: String = status.chars().take(screen.width).collect();
-        buf.push_str(&s);
-    } else {
-        buf.push_str(&status);
-
-        let right_status = format!(
-            "{} | {}/{}",
-            buffer.get_file_type().map_or("no ft", |ft| ft.to_str()),
-            screen.cy + 1,
-            buffer.len()
+        let status = format!(
+            "{:<20} - {} lines {}",
+            self.buffer
+                .get_filepath()
+                .unwrap_or_else(|| "[No Name]".to_string()),
+            self.screen.height,
+            if self.buffer.is_dirty() {
+                "(modified)"
+            } else {
+                ""
+            }
         );
-        if screen.width as isize - status.len() as isize - right_status.len() as isize > 0 {
-            for _ in 0..(screen.width - status.len() - right_status.len()) {
-                buf.push(' ');
-            }
-            buf.push_str(&right_status);
+
+        if self.screen.width < status.len() {
+            let s: String = status.chars().take(self.screen.width).collect();
+            buf.push_str(&s);
         } else {
-            for _ in 0..(screen.width - status.len()) {
-                buf.push(' ');
+            buf.push_str(&status);
+
+            let right_status = format!(
+                "{} | {}/{}",
+                self.buffer
+                    .get_file_type()
+                    .map_or("no ft", |ft| ft.to_str()),
+                self.screen.cy + 1,
+                self.buffer.len()
+            );
+            if self.screen.width as isize - status.len() as isize - right_status.len() as isize > 0
+            {
+                for _ in 0..(self.screen.width - status.len() - right_status.len()) {
+                    buf.push(' ');
+                }
+                buf.push_str(&right_status);
+            } else {
+                for _ in 0..(self.screen.width - status.len()) {
+                    buf.push(' ');
+                }
             }
         }
+
+        buf.push_str("\x1b[m");
+        buf.push_str("\r\n");
+
+        Ok(())
     }
-
-    buf.push_str("\x1b[m");
-    buf.push_str("\r\n");
-
-    Ok(())
-}
-
-fn draw_messagebar(message_bar: &MessageBar, buf: &mut String) -> Result<(), Error> {
-    buf.push_str("\x1b[K");
-
-    let now = SystemTime::now();
-    if let Some(message) = message_bar.get_message(now) {
-        buf.push_str(&message);
-    }
-
-    Ok(())
 }
 
 #[cfg(test)]
