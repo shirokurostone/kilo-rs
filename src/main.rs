@@ -235,7 +235,7 @@ fn resolve_command(key: EditorKey) -> Command {
     }
 }
 
-fn process_key_press(
+fn process_command(
     reader: &mut dyn Read,
     screen: &mut EditorScreen,
     buffer: &mut EditorBuffer,
@@ -462,7 +462,7 @@ fn run(args: Vec<String>) -> Result<(), Error> {
         refresh_screen(&config.screen, &config.buffer, &config.message_bar)?;
         let key = read_editor_key(&mut stdin)?;
         let command = resolve_command(key);
-        match process_key_press(
+        match process_command(
             &mut stdin,
             &mut config.screen,
             &mut config.buffer,
