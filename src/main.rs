@@ -3,7 +3,7 @@ mod key;
 mod screen;
 
 use crate::buffer::{EditorBuffer, Highlight};
-use crate::key::{read_editor_key, EditorKey};
+use crate::key::{read_key, Key};
 use crate::screen::{refresh_screen, EditorScreen, MessageBar};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use std::io::{stdin, stdout, Error, Read, Write};
@@ -41,34 +41,19 @@ fn init_editor() -> Result<EditorConfig, Error> {
 
 #[cfg(test)]
 mod tests {
-    use super::{resolve_command, Command, EditorKey};
+    use super::{resolve_command, Command, Key};
 
     #[test]
     fn test_resolve_command_control_sequence() {
-        assert_eq!(
-            Command::Noop,
-            resolve_command(EditorKey::ControlSequence('a'))
-        );
+        assert_eq!(Command::Noop, resolve_command(Key::ControlSequence('a')));
         assert_eq!(
             Command::Backspace,
-            resolve_command(EditorKey::ControlSequence('h'))
+            resolve_command(Key::ControlSequence('h'))
         );
-        assert_eq!(
-            Command::Enter,
-            resolve_command(EditorKey::ControlSequence('m'))
-        );
-        assert_eq!(
-            Command::Exit,
-            resolve_command(EditorKey::ControlSequence('q'))
-        );
-        assert_eq!(
-            Command::Save,
-            resolve_command(EditorKey::ControlSequence('s'))
-        );
-        assert_eq!(
-            Command::Find,
-            resolve_command(EditorKey::ControlSequence('f'))
-        );
+        assert_eq!(Command::Enter, resolve_command(Key::ControlSequence('m')));
+        assert_eq!(Command::Exit, resolve_command(Key::ControlSequence('q')));
+        assert_eq!(Command::Save, resolve_command(Key::ControlSequence('s')));
+        assert_eq!(Command::Find, resolve_command(Key::ControlSequence('f')));
     }
 }
 
@@ -99,26 +84,26 @@ enum Command {
     Noop,
 }
 
-fn resolve_command(key: EditorKey) -> Command {
+fn resolve_command(key: Key) -> Command {
     match key {
-        EditorKey::ControlSequence('f') => Command::Find,
-        EditorKey::ControlSequence('h') => Command::Backspace,
-        EditorKey::ControlSequence('m') => Command::Enter,
-        EditorKey::ControlSequence('q') => Command::Exit,
-        EditorKey::ControlSequence('s') => Command::Save,
-        EditorKey::ArrowLeft => Command::ArrowLeft,
-        EditorKey::ArrowRight => Command::ArrowRight,
-        EditorKey::ArrowUp => Command::ArrowUp,
-        EditorKey::ArrowDown => Command::ArrowDown,
-        EditorKey::PageUp => Command::PageUp,
-        EditorKey::PageDown => Command::PageDown,
-        EditorKey::Home => Command::Home,
-        EditorKey::End => Command::End,
-        EditorKey::Enter => Command::Enter,
-        EditorKey::Delete => Command::Delete,
-        EditorKey::Backspace => Command::Backspace,
-        EditorKey::Escape => Command::Escape,
-        EditorKey::NormalKey(c) => Command::Input(c),
+        Key::ControlSequence('f') => Command::Find,
+        Key::ControlSequence('h') => Command::Backspace,
+        Key::ControlSequence('m') => Command::Enter,
+        Key::ControlSequence('q') => Command::Exit,
+        Key::ControlSequence('s') => Command::Save,
+        Key::ArrowLeft => Command::ArrowLeft,
+        Key::ArrowRight => Command::ArrowRight,
+        Key::ArrowUp => Command::ArrowUp,
+        Key::ArrowDown => Command::ArrowDown,
+        Key::PageUp => Command::PageUp,
+        Key::PageDown => Command::PageDown,
+        Key::Home => Command::Home,
+        Key::End => Command::End,
+        Key::Enter => Command::Enter,
+        Key::Delete => Command::Delete,
+        Key::Backspace => Command::Backspace,
+        Key::Escape => Command::Escape,
+        Key::NormalKey(c) => Command::Input(c),
         _ => Command::Noop,
     }
 }
@@ -147,7 +132,7 @@ fn process_save_command(
     buffer: &mut EditorBuffer,
     message_bar: &mut MessageBar,
 ) -> Result<(), Error> {
-    let mut callback = |_: &str, _: EditorKey, _: &mut EditorScreen, _: &mut EditorBuffer| {};
+    let mut callback = |_: &str, _: Key, _: &mut EditorScreen, _: &mut EditorBuffer| {};
 
     let ret = if buffer.get_filepath().is_none() {
         match prompt(
@@ -188,69 +173,67 @@ fn process_find_command(
     let mut direction = Direction::Down;
     let mut last_match = true;
     let mut callback =
-        |query: &str, key: EditorKey, screen: &mut EditorScreen, buffer: &mut EditorBuffer| {
-            match key {
-                EditorKey::ArrowUp | EditorKey::ArrowLeft => {
-                    direction = Direction::Up;
-                    if !last_match {
-                        if let Some(last_line) = buffer.get_line(buffer.len() - 1) {
-                            screen.set_cursor(last_line.len() - 1, buffer.len())
-                        }
+        |query: &str, key: Key, screen: &mut EditorScreen, buffer: &mut EditorBuffer| match key {
+            Key::ArrowUp | Key::ArrowLeft => {
+                direction = Direction::Up;
+                if !last_match {
+                    if let Some(last_line) = buffer.get_line(buffer.len() - 1) {
+                        screen.set_cursor(last_line.len() - 1, buffer.len())
                     }
-                    let (cx, cy) = screen.cursor();
-                    screen.left(buffer);
-                    last_match = screen.rfind(query, buffer);
-                    if last_match {
-                        buffer.clear_highlight(cy);
-                        let cur = screen.cursor();
-                        buffer.highlight(cur.0, cur.1, query.len(), Highlight::Match);
-                    } else {
-                        screen.set_cursor(cx, cy);
-                    }
-                    screen.adjust(buffer);
                 }
-                EditorKey::ArrowDown | EditorKey::ArrowRight => {
-                    direction = Direction::Down;
-                    if !last_match {
-                        screen.set_cursor(0, 0);
-                    }
-                    let (cx, cy) = screen.cursor();
-                    screen.right(buffer);
-                    last_match = screen.find(query, buffer);
-                    if last_match {
-                        buffer.clear_highlight(cy);
-                        let cur = screen.cursor();
-                        buffer.highlight(cur.0, cur.1, query.len(), Highlight::Match);
-                    } else {
-                        screen.set_cursor(cx, cy);
-                    }
-                    screen.adjust(buffer);
-                }
-                _ => {
-                    if !last_match {
-                        match direction {
-                            Direction::Up => {
-                                if let Some(last_line) = buffer.get_line(buffer.len() - 1) {
-                                    screen.set_cursor(last_line.len() - 1, buffer.len())
-                                }
-                            }
-                            Direction::Down => {
-                                screen.set_cursor(0, 0);
-                            }
-                        }
-                    }
-                    let (_, cy) = screen.cursor();
-                    last_match = match direction {
-                        Direction::Up => screen.rfind(query, buffer),
-                        Direction::Down => screen.find(query, buffer),
-                    };
+                let (cx, cy) = screen.cursor();
+                screen.left(buffer);
+                last_match = screen.rfind(query, buffer);
+                if last_match {
                     buffer.clear_highlight(cy);
-                    if last_match {
-                        let cur = screen.cursor();
-                        buffer.highlight(cur.0, cur.1, query.len(), Highlight::Match);
-                    }
-                    screen.adjust(buffer);
+                    let cur = screen.cursor();
+                    buffer.highlight(cur.0, cur.1, query.len(), Highlight::Match);
+                } else {
+                    screen.set_cursor(cx, cy);
                 }
+                screen.adjust(buffer);
+            }
+            Key::ArrowDown | Key::ArrowRight => {
+                direction = Direction::Down;
+                if !last_match {
+                    screen.set_cursor(0, 0);
+                }
+                let (cx, cy) = screen.cursor();
+                screen.right(buffer);
+                last_match = screen.find(query, buffer);
+                if last_match {
+                    buffer.clear_highlight(cy);
+                    let cur = screen.cursor();
+                    buffer.highlight(cur.0, cur.1, query.len(), Highlight::Match);
+                } else {
+                    screen.set_cursor(cx, cy);
+                }
+                screen.adjust(buffer);
+            }
+            _ => {
+                if !last_match {
+                    match direction {
+                        Direction::Up => {
+                            if let Some(last_line) = buffer.get_line(buffer.len() - 1) {
+                                screen.set_cursor(last_line.len() - 1, buffer.len())
+                            }
+                        }
+                        Direction::Down => {
+                            screen.set_cursor(0, 0);
+                        }
+                    }
+                }
+                let (_, cy) = screen.cursor();
+                last_match = match direction {
+                    Direction::Up => screen.rfind(query, buffer),
+                    Direction::Down => screen.find(query, buffer),
+                };
+                buffer.clear_highlight(cy);
+                if last_match {
+                    let cur = screen.cursor();
+                    buffer.highlight(cur.0, cur.1, query.len(), Highlight::Match);
+                }
+                screen.adjust(buffer);
             }
         };
     let (cx, cy) = screen.cursor();
@@ -320,7 +303,7 @@ pub fn prompt<T>(
     callback: &mut T,
 ) -> Result<String, Error>
 where
-    T: FnMut(&str, EditorKey, &mut EditorScreen, &mut EditorBuffer),
+    T: FnMut(&str, Key, &mut EditorScreen, &mut EditorBuffer),
 {
     let mut input = String::new();
     let mut buf = String::from(prompt);
@@ -329,22 +312,22 @@ where
 
     loop {
         refresh_screen(screen, buffer, message_bar)?;
-        match read_editor_key(reader)? {
-            EditorKey::Enter => {
+        match read_key(reader)? {
+            Key::Enter => {
                 message_bar.set("".to_string(), SystemTime::now());
-                callback(&input, EditorKey::Enter, screen, buffer);
+                callback(&input, Key::Enter, screen, buffer);
                 return Ok(input);
             }
-            EditorKey::Escape => {
+            Key::Escape => {
                 message_bar.set("aborted".to_string(), SystemTime::now());
-                callback(&input, EditorKey::Escape, screen, buffer);
+                callback(&input, Key::Escape, screen, buffer);
                 return Err(Error::other("aborted"));
             }
-            EditorKey::NormalKey(c) => {
+            Key::NormalKey(c) => {
                 input.push(c);
                 buf.push(c);
                 message_bar.set(buf.clone(), SystemTime::now());
-                callback(&input, EditorKey::NormalKey(c), screen, buffer);
+                callback(&input, Key::NormalKey(c), screen, buffer);
             }
             key => {
                 message_bar.set(buf.clone(), SystemTime::now());
@@ -367,7 +350,7 @@ fn run(args: Vec<String>) -> Result<(), Error> {
 
     loop {
         refresh_screen(&config.screen, &config.buffer, &config.message_bar)?;
-        let key = read_editor_key(&mut stdin)?;
+        let key = read_key(&mut stdin)?;
         let command = resolve_command(key);
         match process_command(
             &mut stdin,

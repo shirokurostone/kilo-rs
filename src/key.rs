@@ -1,7 +1,7 @@
 use std::io::{Error, Read};
 
 #[derive(Debug, PartialEq, Clone, Copy)]
-pub enum EditorKey {
+pub enum Key {
     ArrowLeft,
     ArrowRight,
     ArrowUp,
@@ -18,7 +18,7 @@ pub enum EditorKey {
     NormalKey(char),
 }
 
-fn read_single_key(reader: &mut dyn Read) -> Result<char, Error> {
+fn read_char(reader: &mut dyn Read) -> Result<char, Error> {
     let mut buf = [0u8; 1];
 
     loop {
@@ -29,33 +29,33 @@ fn read_single_key(reader: &mut dyn Read) -> Result<char, Error> {
     }
 }
 
-pub fn read_editor_key(reader: &mut dyn Read) -> Result<EditorKey, Error> {
-    let c = read_single_key(reader)?;
+pub fn read_key(reader: &mut dyn Read) -> Result<Key, Error> {
+    let c = read_char(reader)?;
     let escape_sequence_table = [
-        ("\x1b[A", EditorKey::ArrowUp),
-        ("\x1b[B", EditorKey::ArrowDown),
-        ("\x1b[C", EditorKey::ArrowRight),
-        ("\x1b[D", EditorKey::ArrowLeft),
-        ("\x1b[H", EditorKey::Home),
-        ("\x1b[F", EditorKey::End),
-        ("\x1b[1~", EditorKey::Home),
-        ("\x1b[3~", EditorKey::Delete),
-        ("\x1b[4~", EditorKey::End),
-        ("\x1b[5~", EditorKey::PageUp),
-        ("\x1b[6~", EditorKey::PageDown),
-        ("\x1b[7~", EditorKey::Home),
-        ("\x1b[8~", EditorKey::End),
-        ("\x1bOH", EditorKey::Home),
-        ("\x1bOF", EditorKey::End),
+        ("\x1b[A", Key::ArrowUp),
+        ("\x1b[B", Key::ArrowDown),
+        ("\x1b[C", Key::ArrowRight),
+        ("\x1b[D", Key::ArrowLeft),
+        ("\x1b[H", Key::Home),
+        ("\x1b[F", Key::End),
+        ("\x1b[1~", Key::Home),
+        ("\x1b[3~", Key::Delete),
+        ("\x1b[4~", Key::End),
+        ("\x1b[5~", Key::PageUp),
+        ("\x1b[6~", Key::PageDown),
+        ("\x1b[7~", Key::Home),
+        ("\x1b[8~", Key::End),
+        ("\x1bOH", Key::Home),
+        ("\x1bOF", Key::End),
     ];
 
     match c {
-        '\r' => Ok(EditorKey::Enter),
-        '\x01'..'\x1b' => Ok(EditorKey::ControlSequence(((c as u8) + b'a' - 1) as char)),
+        '\r' => Ok(Key::Enter),
+        '\x01'..'\x1b' => Ok(Key::ControlSequence(((c as u8) + b'a' - 1) as char)),
         '\x1b' => {
             let mut buf = String::from("\x1b");
             loop {
-                let c2 = read_single_key(reader)?;
+                let c2 = read_char(reader)?;
                 buf.push(c2);
 
                 let matches = escape_sequence_table
@@ -64,58 +64,58 @@ pub fn read_editor_key(reader: &mut dyn Read) -> Result<EditorKey, Error> {
                     .collect::<Vec<_>>();
 
                 if matches.is_empty() {
-                    return Ok(EditorKey::Escape);
+                    return Ok(Key::Escape);
                 } else if matches.len() == 1 && buf.eq(matches[0].0) {
                     return Ok(matches[0].1);
                 }
             }
         }
-        '\x7f' => Ok(EditorKey::Backspace),
-        c => Ok(EditorKey::NormalKey(c)),
+        '\x7f' => Ok(Key::Backspace),
+        c => Ok(Key::NormalKey(c)),
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::EditorKey;
-    use crate::key::read_editor_key;
+    use super::Key;
+    use crate::key::read_key;
     use std::io::BufReader;
 
-    fn assert_read_editor_key(input: &str, expected: EditorKey) {
+    fn assert_read_editor_key(input: &str, expected: Key) {
         let data = input.bytes().collect::<Vec<u8>>();
         let mut reader = BufReader::new(&data[..]);
-        let actual = read_editor_key(&mut reader);
+        let actual = read_key(&mut reader);
         assert_eq!(expected, actual.unwrap(), "input:{}", input.escape_debug());
     }
 
     #[test]
     fn test_read_editor_key_escape() {
-        assert_read_editor_key("\x1b[A", EditorKey::ArrowUp);
-        assert_read_editor_key("\x1b[B", EditorKey::ArrowDown);
-        assert_read_editor_key("\x1b[C", EditorKey::ArrowRight);
-        assert_read_editor_key("\x1b[D", EditorKey::ArrowLeft);
-        assert_read_editor_key("\x1b[H", EditorKey::Home);
-        assert_read_editor_key("\x1b[F", EditorKey::End);
+        assert_read_editor_key("\x1b[A", Key::ArrowUp);
+        assert_read_editor_key("\x1b[B", Key::ArrowDown);
+        assert_read_editor_key("\x1b[C", Key::ArrowRight);
+        assert_read_editor_key("\x1b[D", Key::ArrowLeft);
+        assert_read_editor_key("\x1b[H", Key::Home);
+        assert_read_editor_key("\x1b[F", Key::End);
 
-        assert_read_editor_key("\x1b[1~", EditorKey::Home);
-        assert_read_editor_key("\x1b[3~", EditorKey::Delete);
-        assert_read_editor_key("\x1b[4~", EditorKey::End);
-        assert_read_editor_key("\x1b[5~", EditorKey::PageUp);
-        assert_read_editor_key("\x1b[6~", EditorKey::PageDown);
-        assert_read_editor_key("\x1b[7~", EditorKey::Home);
-        assert_read_editor_key("\x1b[8~", EditorKey::End);
+        assert_read_editor_key("\x1b[1~", Key::Home);
+        assert_read_editor_key("\x1b[3~", Key::Delete);
+        assert_read_editor_key("\x1b[4~", Key::End);
+        assert_read_editor_key("\x1b[5~", Key::PageUp);
+        assert_read_editor_key("\x1b[6~", Key::PageDown);
+        assert_read_editor_key("\x1b[7~", Key::Home);
+        assert_read_editor_key("\x1b[8~", Key::End);
 
-        assert_read_editor_key("\x1bOH", EditorKey::Home);
-        assert_read_editor_key("\x1bOF", EditorKey::End);
+        assert_read_editor_key("\x1bOH", Key::Home);
+        assert_read_editor_key("\x1bOF", Key::End);
     }
 
     #[test]
     fn test_read_editor_key() {
-        assert_read_editor_key("\r", EditorKey::Enter);
-        assert_read_editor_key("\x7f", EditorKey::Backspace);
-        assert_read_editor_key(" ", EditorKey::NormalKey(' '));
-        assert_read_editor_key("~", EditorKey::NormalKey('~'));
-        assert_read_editor_key("\x01", EditorKey::ControlSequence('a'));
-        assert_read_editor_key("\x1a", EditorKey::ControlSequence('z'));
+        assert_read_editor_key("\r", Key::Enter);
+        assert_read_editor_key("\x7f", Key::Backspace);
+        assert_read_editor_key(" ", Key::NormalKey(' '));
+        assert_read_editor_key("~", Key::NormalKey('~'));
+        assert_read_editor_key("\x01", Key::ControlSequence('a'));
+        assert_read_editor_key("\x1a", Key::ControlSequence('z'));
     }
 }
