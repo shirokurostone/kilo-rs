@@ -1,4 +1,9 @@
 use crate::buffer::EditorBuffer;
+use crate::escape_sequence::{
+    move_cursor, ESCAPE_SEQUENCE_CLEAR_LINE, ESCAPE_SEQUENCE_HIDE_CURSOR,
+    ESCAPE_SEQUENCE_MOVE_CURSOR_TO_FIRST_POSITION, ESCAPE_SEQUENCE_SHOW_CURSOR,
+    ESCAPE_SEQUENCE_STYLE_RESET, ESCAPE_SEQUENCE_STYLE_REVERSE,
+};
 use crate::KILO_VERSION;
 use std::io::{stdout, Error, Write};
 use std::time::SystemTime;
@@ -249,7 +254,7 @@ impl MessageBar {
 
 impl Drawable for MessageBar {
     fn draw(&self, buf: &mut String) -> Result<(), Error> {
-        buf.push_str("\x1b[K");
+        buf.push_str(ESCAPE_SEQUENCE_CLEAR_LINE);
 
         let now = SystemTime::now();
         if let Some(message) = self.get_message(now) {
@@ -269,21 +274,17 @@ pub fn refresh_screen(
     let rows = Rows { screen, buffer };
     let status_bar = StatusBar { screen, buffer };
 
-    buf.push_str("\x1b[?25l");
-    buf.push_str("\x1b[H");
+    buf.push_str(ESCAPE_SEQUENCE_HIDE_CURSOR);
+    buf.push_str(ESCAPE_SEQUENCE_MOVE_CURSOR_TO_FIRST_POSITION);
 
     rows.draw(&mut buf)?;
     status_bar.draw(&mut buf)?;
     message_bar.draw(&mut buf)?;
 
-    let cursor = format!(
-        "\x1b[{};{}H",
-        (screen.cy - screen.offset_y) + 1,
-        (screen.rx - screen.offset_x) + 1
-    );
+    let cursor = move_cursor(screen.rx - screen.offset_x, screen.cy - screen.offset_y);
     buf.push_str(&cursor);
 
-    buf.push_str("\x1b[?25h");
+    buf.push_str(ESCAPE_SEQUENCE_SHOW_CURSOR);
 
     print!("{}", buf);
     stdout().flush()?;
@@ -324,7 +325,7 @@ impl Drawable for Rows<'_> {
                 buf.push('~');
             }
 
-            buf.push_str("\x1b[K");
+            buf.push_str(ESCAPE_SEQUENCE_CLEAR_LINE);
             buf.push_str("\r\n");
         }
 
@@ -339,7 +340,7 @@ struct StatusBar<'a> {
 
 impl Drawable for StatusBar<'_> {
     fn draw(&self, buf: &mut String) -> Result<(), Error> {
-        buf.push_str("\x1b[7m");
+        buf.push_str(ESCAPE_SEQUENCE_STYLE_REVERSE);
 
         let status = format!(
             "{:<20} - {} lines {}",
@@ -381,7 +382,7 @@ impl Drawable for StatusBar<'_> {
             }
         }
 
-        buf.push_str("\x1b[m");
+        buf.push_str(ESCAPE_SEQUENCE_STYLE_RESET);
         buf.push_str("\r\n");
 
         Ok(())

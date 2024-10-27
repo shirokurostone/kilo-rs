@@ -1,3 +1,4 @@
+use crate::escape_sequence::{Color, ESCAPE_SEQUENCE_STYLE_RESET, ESCAPE_SEQUENCE_STYLE_REVERSE};
 use crate::TAB_STOP;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Error, Write};
@@ -375,16 +376,16 @@ pub enum Highlight {
 }
 
 impl Highlight {
-    fn color(&self) -> usize {
+    fn color(&self) -> Color {
         match self {
-            Highlight::Normal => 37,
-            Highlight::Number => 31,
-            Highlight::Match => 34,
-            Highlight::String => 35,
-            Highlight::Comment => 36,
-            Highlight::MultilineComment => 36,
-            Highlight::Keyword1 => 33,
-            Highlight::Keyword2 => 32,
+            Highlight::Normal => Color::White,
+            Highlight::Number => Color::Red,
+            Highlight::Match => Color::Blue,
+            Highlight::String => Color::Magenta,
+            Highlight::Comment => Color::Cyan,
+            Highlight::MultilineComment => Color::Cyan,
+            Highlight::Keyword1 => Color::Yellow,
+            Highlight::Keyword2 => Color::Green,
         }
     }
 }
@@ -453,29 +454,26 @@ impl EditorBuffer {
                 .take(width)
                 .for_each(|(i, c)| {
                     if c.is_ascii_control() {
-                        output.push_str("\x1b[7m");
+                        output.push_str(ESCAPE_SEQUENCE_STYLE_REVERSE);
                         match c {
                             '\x00' => output.push('@'),
                             '\x01'..='\x1a' => output.push(((c as u8) + b'@') as char),
                             _ => output.push('?'),
                         }
-                        output.push_str("\x1b[m");
-
-                        let s = format!("\x1b[{}m", current_color.color());
-                        output.push_str(&s);
+                        output.push_str(ESCAPE_SEQUENCE_STYLE_RESET);
+                        output.push_str(current_color.color().foreground_escape_sequence());
                     } else {
                         match el.highlight[i] {
                             Highlight::Normal => {
                                 if current_color != Highlight::Normal {
-                                    output.push_str("\x1b[39m");
+                                    output.push_str(Color::Default.foreground_escape_sequence());
                                     current_color = Highlight::Normal;
                                 }
                                 output.push(c);
                             }
                             hi => {
                                 if current_color != hi {
-                                    let s = format!("\x1b[{}m", hi.color());
-                                    output.push_str(&s);
+                                    output.push_str(hi.color().foreground_escape_sequence());
                                     current_color = hi;
                                 }
                                 output.push(c);
@@ -483,7 +481,7 @@ impl EditorBuffer {
                         }
                     }
                 });
-            output.push_str("\x1b[39m");
+            output.push_str(Color::Default.foreground_escape_sequence());
             output
         })
     }

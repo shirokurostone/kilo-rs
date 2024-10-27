@@ -1,10 +1,14 @@
 mod buffer;
 mod command;
+mod escape_sequence;
 mod key;
 mod screen;
 
 use crate::buffer::EditorBuffer;
 use crate::command::{process_command, resolve_command};
+use crate::escape_sequence::{
+    ESCAPE_SEQUENCE_CLEAR_SCREEN, ESCAPE_SEQUENCE_MOVE_CURSOR_TO_FIRST_POSITION,
+};
 use crate::key::read_key;
 use crate::screen::{refresh_screen, EditorScreen, MessageBar};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
@@ -69,8 +73,10 @@ fn run(args: Vec<String>) -> Result<(), Error> {
         }
     }
 
-    print!("\x1b[2J");
-    print!("\x1b[H");
+    print!(
+        "{}{}",
+        ESCAPE_SEQUENCE_CLEAR_SCREEN, ESCAPE_SEQUENCE_MOVE_CURSOR_TO_FIRST_POSITION
+    );
     stdout().flush()?;
     disable_raw_mode()?;
 
