@@ -341,7 +341,6 @@ impl Drawable for MessageBar {
 
 pub fn refresh_screen(screen: &EditorScreen, message_bar: &MessageBar) -> Result<(), Error> {
     let mut buf = String::new();
-    let rows = Rows { screen };
     let status_bar = StatusBar {
         component: Component {
             x: 0,
@@ -355,7 +354,7 @@ pub fn refresh_screen(screen: &EditorScreen, message_bar: &MessageBar) -> Result
     buf.push_str(ESCAPE_SEQUENCE_HIDE_CURSOR);
     buf.push_str(ESCAPE_SEQUENCE_MOVE_CURSOR_TO_FIRST_POSITION);
 
-    rows.draw(&mut buf)?;
+    screen.draw(&mut buf)?;
     status_bar.draw(&mut buf)?;
     message_bar.draw(&mut buf)?;
 
@@ -373,30 +372,25 @@ pub fn refresh_screen(screen: &EditorScreen, message_bar: &MessageBar) -> Result
     Ok(())
 }
 
-struct Rows<'a> {
-    screen: &'a EditorScreen,
-}
-
-impl Drawable for Rows<'_> {
+impl Drawable for EditorScreen {
     fn draw(&self, buf: &mut String) -> Result<(), Error> {
-        for i in 0..self.screen.component.height {
-            let file_line_no = i + self.screen.offset_y;
+        for i in 0..self.component.height {
+            let file_line_no = i + self.offset_y;
 
-            let cursor = move_cursor(self.screen.component.x, i + self.screen.component.y);
+            let cursor = move_cursor(self.component.x, i + self.component.y);
             buf.push_str(&cursor);
 
-            if file_line_no < self.screen.buffer.len() {
-                if let Some(render) = self.screen.buffer.get_render(
-                    file_line_no,
-                    self.screen.offset_x,
-                    self.screen.component.width,
-                ) {
+            if file_line_no < self.buffer.len() {
+                if let Some(render) =
+                    self.buffer
+                        .get_render(file_line_no, self.offset_x, self.component.width)
+                {
                     buf.push_str(&render);
                 }
-            } else if self.screen.buffer.is_empty() && i == self.screen.component.height / 3 {
+            } else if self.buffer.is_empty() && i == self.component.height / 3 {
                 let title = format!("kilo-rs -- version {}", KILO_VERSION);
-                let t: String = title.chars().take(self.screen.component.width).collect();
-                let mut padding = (self.screen.component.width - t.len()) / 2;
+                let t: String = title.chars().take(self.component.width).collect();
+                let mut padding = (self.component.width - t.len()) / 2;
                 if padding > 0 {
                     buf.push('~');
                     padding -= 1;
