@@ -8,6 +8,43 @@ use crate::KILO_VERSION;
 use std::io::{stdout, Error, Write};
 use std::time::SystemTime;
 
+pub struct Terminal {
+    width: usize,
+    height: usize,
+}
+
+impl Terminal {
+    pub fn new() -> Result<Terminal, Error> {
+        let mut terminal = Terminal {
+            width: 0,
+            height: 0,
+        };
+        terminal.update()?;
+        Ok(terminal)
+    }
+
+    pub fn get_width(&self) -> usize {
+        self.width
+    }
+
+    pub fn get_height(&self) -> usize {
+        self.height
+    }
+
+    pub fn update(&mut self) -> Result<bool, Error> {
+        let size = crossterm::terminal::size()?;
+        let width = size.0 as usize;
+        let height = size.1 as usize;
+
+        let updated = width != self.width || height != self.height;
+
+        self.width = width;
+        self.height = height;
+
+        Ok(updated)
+    }
+}
+
 trait Drawable {
     fn draw(&self, buf: &mut String) -> Result<(), Error>;
 }
@@ -54,13 +91,9 @@ impl EditorScreen {
         self.offset_y = y;
     }
 
-    pub fn init_screen_size(&mut self) -> Result<(), Error> {
-        let size = crossterm::terminal::size()?;
-
-        self.width = size.0 as usize;
-        self.height = size.1 as usize - 2;
-
-        Ok(())
+    pub fn set_size(&mut self, width: usize, height: usize) {
+        self.width = width;
+        self.height = height;
     }
 
     pub fn down(&mut self, buffer: &EditorBuffer) {

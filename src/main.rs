@@ -10,7 +10,7 @@ use crate::escape_sequence::{
     ESCAPE_SEQUENCE_CLEAR_SCREEN, ESCAPE_SEQUENCE_MOVE_CURSOR_TO_FIRST_POSITION,
 };
 use crate::key::read_key;
-use crate::screen::{refresh_screen, EditorScreen, MessageBar};
+use crate::screen::{refresh_screen, EditorScreen, MessageBar, Terminal};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use std::io::{stdin, stdout, Error, Read, Write};
 use std::time::SystemTime;
@@ -36,8 +36,6 @@ fn main() {
 
 fn init_editor() -> Result<EditorConfig, Error> {
     let mut screen = EditorScreen::new();
-    screen.init_screen_size()?;
-
     Ok(EditorConfig {
         screen,
         buffer: EditorBuffer::new(),
@@ -49,6 +47,11 @@ fn run(args: Vec<String>) -> Result<(), Error> {
     let mut stdin = stdin();
     let mut config = init_editor()?;
     let mut quit_times = QUIT_TIMES;
+    let mut terminal = Terminal::new()?;
+
+    config
+        .screen
+        .set_size(terminal.get_width(), terminal.get_height() - 2);
 
     if args.len() > 1 {
         config.buffer.load_file(args.get(1).unwrap().to_string())?;
@@ -57,6 +60,12 @@ fn run(args: Vec<String>) -> Result<(), Error> {
     enable_raw_mode()?;
 
     loop {
+        if terminal.update()? {
+            config
+                .screen
+                .set_size(terminal.get_width(), terminal.get_height() - 2);
+        }
+
         refresh_screen(&config.screen, &config.buffer, &config.message_bar)?;
         let key = read_key(&mut stdin)?;
         let command = resolve_command(key);
