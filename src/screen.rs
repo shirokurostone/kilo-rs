@@ -69,6 +69,7 @@ trait Drawable {
 #[derive(Debug, PartialEq)]
 pub struct EditorScreen {
     component: Component,
+    buffer: EditorBuffer,
     cx: usize,
     cy: usize,
     rx: usize,
@@ -85,12 +86,17 @@ impl EditorScreen {
                 width: 0,
                 height: 0,
             },
+            buffer: EditorBuffer::new(),
             cx: 0,
             cy: 0,
             rx: 0,
             offset_x: 0,
             offset_y: 0,
         }
+    }
+
+    pub fn buffer(&mut self) -> &mut EditorBuffer {
+        &mut self.buffer
     }
 
     pub fn cursor(&self) -> (usize, usize) {
@@ -115,31 +121,31 @@ impl EditorScreen {
         self.component.set_size(x, y, width, height);
     }
 
-    pub fn down(&mut self, buffer: &EditorBuffer) {
-        if !buffer.is_empty() && self.cy < buffer.len() {
+    pub fn down(&mut self) {
+        if !self.buffer.is_empty() && self.cy < self.buffer.len() {
             self.cy += 1;
         }
     }
 
-    pub fn up(&mut self, _: &EditorBuffer) {
+    pub fn up(&mut self) {
         if self.cy > 0 {
             self.cy -= 1;
         }
     }
 
-    pub fn left(&mut self, buffer: &EditorBuffer) {
+    pub fn left(&mut self) {
         if self.cx > 0 {
             self.cx -= 1;
         } else if self.cy > 0 {
-            if let Some(line) = buffer.get_line(self.cy - 1) {
+            if let Some(line) = self.buffer.get_line(self.cy - 1) {
                 self.cy -= 1;
                 self.cx = line.len();
             }
         }
     }
 
-    pub fn right(&mut self, buffer: &EditorBuffer) {
-        if let Some(line) = buffer.get_line(self.cy) {
+    pub fn right(&mut self) {
+        if let Some(line) = self.buffer.get_line(self.cy) {
             if self.cx < line.len() {
                 self.cx += 1;
             } else if self.cx == line.len() {
@@ -149,73 +155,75 @@ impl EditorScreen {
         }
     }
 
-    pub fn page_up(&mut self, buffer: &EditorBuffer) {
+    pub fn page_up(&mut self) {
         self.cy = self.offset_y;
         for _ in 0..self.component.height {
-            self.up(buffer);
+            self.up();
         }
     }
 
-    pub fn page_down(&mut self, buffer: &EditorBuffer) {
+    pub fn page_down(&mut self) {
         self.cy = self.offset_y + self.component.height - 1;
         for _ in 0..self.component.height {
-            self.down(buffer);
+            self.down();
         }
     }
 
-    pub fn home(&mut self, _: &EditorBuffer) {
+    pub fn home(&mut self) {
         self.cx = 0;
     }
 
-    pub fn end(&mut self, buffer: &EditorBuffer) {
-        if self.cy < buffer.len() {
-            if let Some(line) = buffer.get_line(self.cy) {
+    pub fn end(&mut self) {
+        if self.cy < self.buffer.len() {
+            if let Some(line) = self.buffer.get_line(self.cy) {
                 self.cx = line.len();
             }
         }
     }
 
-    pub fn insert_new_line(&mut self, buffer: &mut EditorBuffer) {
+    pub fn insert_new_line(&mut self) {
         if self.cx == 0 {
-            buffer.insert_line(self.cy, "".to_string());
-        } else if let Some(current) = buffer.get_line(self.cy) {
-            buffer.replace_line(self.cy, (current[0..self.cx]).to_string());
-            buffer.insert_line(self.cy + 1, (current[self.cx..]).to_string());
+            self.buffer.insert_line(self.cy, "".to_string());
+        } else if let Some(current) = self.buffer.get_line(self.cy) {
+            self.buffer
+                .replace_line(self.cy, (current[0..self.cx]).to_string());
+            self.buffer
+                .insert_line(self.cy + 1, (current[self.cx..]).to_string());
         }
-        buffer.clear_highlight(self.cy);
+        self.buffer.clear_highlight(self.cy);
         self.cx = 0;
         self.cy += 1;
     }
 
-    pub fn insert_char(&mut self, buffer: &mut EditorBuffer, c: char) {
-        if self.cy == buffer.len() {
-            buffer.insert_line(buffer.len(), "".to_string());
+    pub fn insert_char(&mut self, c: char) {
+        if self.cy == self.buffer.len() {
+            self.buffer.insert_line(self.buffer.len(), "".to_string());
             self.cx = 0;
         }
-        buffer.insert_char(self.cx, self.cy, c);
+        self.buffer.insert_char(self.cx, self.cy, c);
         self.cx += 1
     }
 
-    pub fn delete_char(&mut self, buffer: &mut EditorBuffer) {
+    pub fn delete_char(&mut self) {
         if self.cx == 0 && self.cy == 0 {
         } else if self.cx == 0 {
-            if let Some(prev) = buffer.get_line(self.cy - 1) {
-                if let Some(current) = buffer.get_line(self.cy) {
+            if let Some(prev) = self.buffer.get_line(self.cy - 1) {
+                if let Some(current) = self.buffer.get_line(self.cy) {
                     self.cx = prev.len();
-                    buffer.append_string(self.cx, self.cy - 1, current);
-                    buffer.delete_line(self.cy);
+                    self.buffer.append_string(self.cx, self.cy - 1, current);
+                    self.buffer.delete_line(self.cy);
                     self.cy -= 1;
                 }
             }
         } else {
-            buffer.delete_char(self.cx - 1, self.cy);
+            self.buffer.delete_char(self.cx - 1, self.cy);
             self.cx -= 1;
         }
     }
 
-    pub fn find(&mut self, query: &str, buffer: &mut EditorBuffer) -> bool {
-        for i in self.cy..buffer.len() {
-            if let Some(line) = buffer.get_line(i) {
+    pub fn find(&mut self, query: &str) -> bool {
+        for i in self.cy..self.buffer.len() {
+            if let Some(line) = self.buffer.get_line(i) {
                 let begin = if i == self.cy { self.cx } else { 0 };
 
                 if let Some(j) = line[begin..line.len()].find(query) {
@@ -228,9 +236,9 @@ impl EditorScreen {
         false
     }
 
-    pub fn rfind(&mut self, query: &str, buffer: &mut EditorBuffer) -> bool {
+    pub fn rfind(&mut self, query: &str) -> bool {
         for i in (0..=self.cy).rev() {
-            if let Some(line) = buffer.get_line(i) {
+            if let Some(line) = self.buffer.get_line(i) {
                 let end = if i == self.cy { self.cx } else { line.len() };
 
                 if let Some(j) = line[0..end].rfind(query) {
@@ -243,17 +251,17 @@ impl EditorScreen {
         false
     }
 
-    pub fn adjust(&mut self, buffer: &EditorBuffer) {
+    pub fn adjust(&mut self) {
         self.rx = 0;
 
-        if let Some(line) = buffer.get_line(self.cy) {
+        if let Some(line) = self.buffer.get_line(self.cy) {
             if line.len() < self.cx {
                 self.cx = line.len();
             }
         }
 
-        if self.cy < buffer.len() {
-            self.rx = buffer.cx_to_rx(self.cx, self.cy);
+        if self.cy < self.buffer.len() {
+            self.rx = self.buffer.cx_to_rx(self.cx, self.cy);
         }
 
         if self.rx < self.offset_x {
@@ -331,13 +339,9 @@ impl Drawable for MessageBar {
     }
 }
 
-pub fn refresh_screen(
-    screen: &EditorScreen,
-    buffer: &EditorBuffer,
-    message_bar: &MessageBar,
-) -> Result<(), Error> {
+pub fn refresh_screen(screen: &EditorScreen, message_bar: &MessageBar) -> Result<(), Error> {
     let mut buf = String::new();
-    let rows = Rows { screen, buffer };
+    let rows = Rows { screen };
     let status_bar = StatusBar {
         component: Component {
             x: 0,
@@ -346,7 +350,6 @@ pub fn refresh_screen(
             height: 1,
         },
         screen,
-        buffer,
     };
 
     buf.push_str(ESCAPE_SEQUENCE_HIDE_CURSOR);
@@ -372,7 +375,6 @@ pub fn refresh_screen(
 
 struct Rows<'a> {
     screen: &'a EditorScreen,
-    buffer: &'a EditorBuffer,
 }
 
 impl Drawable for Rows<'_> {
@@ -383,15 +385,15 @@ impl Drawable for Rows<'_> {
             let cursor = move_cursor(self.screen.component.x, i + self.screen.component.y);
             buf.push_str(&cursor);
 
-            if file_line_no < self.buffer.len() {
-                if let Some(render) = self.buffer.get_render(
+            if file_line_no < self.screen.buffer.len() {
+                if let Some(render) = self.screen.buffer.get_render(
                     file_line_no,
                     self.screen.offset_x,
                     self.screen.component.width,
                 ) {
                     buf.push_str(&render);
                 }
-            } else if self.buffer.is_empty() && i == self.screen.component.height / 3 {
+            } else if self.screen.buffer.is_empty() && i == self.screen.component.height / 3 {
                 let title = format!("kilo-rs -- version {}", KILO_VERSION);
                 let t: String = title.chars().take(self.screen.component.width).collect();
                 let mut padding = (self.screen.component.width - t.len()) / 2;
@@ -418,7 +420,6 @@ impl Drawable for Rows<'_> {
 struct StatusBar<'a> {
     component: Component,
     screen: &'a EditorScreen,
-    buffer: &'a EditorBuffer,
 }
 
 impl StatusBar<'_> {
@@ -436,11 +437,12 @@ impl Drawable for StatusBar<'_> {
 
         let status = format!(
             "{:<20} - {} lines {}",
-            self.buffer
+            self.screen
+                .buffer
                 .get_filepath()
                 .unwrap_or_else(|| "[No Name]".to_string()),
             self.component.height,
-            if self.buffer.is_dirty() {
+            if self.screen.buffer.is_dirty() {
                 "(modified)"
             } else {
                 ""
@@ -455,11 +457,12 @@ impl Drawable for StatusBar<'_> {
 
             let right_status = format!(
                 "{} | {}/{}",
-                self.buffer
+                self.screen
+                    .buffer
                     .get_file_type()
                     .map_or("no ft", |ft| ft.to_str()),
                 self.screen.cy + 1,
-                self.buffer.len()
+                self.screen.buffer.len()
             );
             if self.component.width as isize - status.len() as isize - right_status.len() as isize
                 > 0
@@ -501,7 +504,7 @@ mod tests {
         screen.rx = 0;
         screen.offset_x = 0;
         screen.offset_y = 0;
-        screen.adjust(&buffer);
+        screen.adjust();
         assert_eq!(100, screen.cx);
         assert_eq!(100, screen.rx);
         assert_eq!(81, screen.offset_x);
@@ -511,7 +514,7 @@ mod tests {
         screen.rx = 0;
         screen.offset_x = 0;
         screen.offset_y = 0;
-        screen.adjust(&buffer);
+        screen.adjust();
         assert_eq!(10, screen.rx);
         assert_eq!(0, screen.offset_x);
 
@@ -520,7 +523,7 @@ mod tests {
         screen.rx = 0;
         screen.offset_x = 50;
         screen.offset_y = 0;
-        screen.adjust(&buffer);
+        screen.adjust();
         assert_eq!(10, screen.rx);
         assert_eq!(10, screen.offset_x);
 
@@ -529,7 +532,7 @@ mod tests {
         screen.rx = 0;
         screen.offset_x = 0;
         screen.offset_y = 0;
-        screen.adjust(&buffer);
+        screen.adjust();
         assert_eq!(50, screen.rx);
         assert_eq!(31, screen.offset_x);
 
@@ -538,7 +541,7 @@ mod tests {
         screen.rx = 0;
         screen.offset_x = 0;
         screen.offset_y = 50;
-        screen.adjust(&buffer);
+        screen.adjust();
         assert_eq!(10, screen.offset_y);
 
         screen.cx = 0;
@@ -546,7 +549,7 @@ mod tests {
         screen.rx = 0;
         screen.offset_x = 0;
         screen.offset_y = 0;
-        screen.adjust(&buffer);
+        screen.adjust();
         assert_eq!(31, screen.offset_y);
     }
 }

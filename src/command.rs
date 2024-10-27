@@ -96,25 +96,18 @@ fn process_exit_command(
 fn process_save_command(
     reader: &mut dyn Read,
     screen: &mut EditorScreen,
-    buffer: &mut EditorBuffer,
     message_bar: &mut MessageBar,
 ) -> Result<(), Error> {
-    let mut callback = |_: &str, _: Key, _: &mut EditorScreen, _: &mut EditorBuffer| {};
+    let mut callback = |_: &str, _: Key, _: &mut EditorScreen| {};
 
-    let ret = if buffer.get_filepath().is_none() {
-        match prompt(
-            reader,
-            screen,
-            buffer,
-            message_bar,
-            "Save as: ",
-            &mut callback,
-        ) {
-            Ok(path) => buffer.save_file(path),
+    let filepath = screen.buffer().get_filepath();
+    let ret = if filepath.is_none() {
+        match prompt(reader, screen, message_bar, "Save as: ", &mut callback) {
+            Ok(path) => screen.buffer().save_file(path),
             Err(_) => return Ok(()),
         }
     } else {
-        buffer.overwrite_file()
+        screen.buffer().overwrite_file()
     };
 
     match ret {
@@ -134,91 +127,92 @@ fn process_save_command(
 fn process_find_command(
     reader: &mut dyn Read,
     screen: &mut EditorScreen,
-    buffer: &mut EditorBuffer,
     message_bar: &mut MessageBar,
 ) -> Result<(), Error> {
     let mut direction = Direction::Down;
     let mut last_match = true;
-    let mut callback =
-        |query: &str, key: Key, screen: &mut EditorScreen, buffer: &mut EditorBuffer| match key {
-            Key::ArrowUp | Key::ArrowLeft => {
-                direction = Direction::Up;
-                if !last_match {
-                    if let Some(last_line) = buffer.get_line(buffer.len() - 1) {
-                        screen.set_cursor(last_line.len() - 1, buffer.len())
+    let mut callback = |query: &str, key: Key, screen: &mut EditorScreen| match key {
+        Key::ArrowUp | Key::ArrowLeft => {
+            direction = Direction::Up;
+            if !last_match {
+                let buffer_len = screen.buffer().len();
+                let buffer_last_line = screen.buffer().get_line(buffer_len - 1);
+                if let Some(last_line) = buffer_last_line {
+                    screen.set_cursor(last_line.len() - 1, buffer_len)
+                }
+            }
+            let (cx, cy) = screen.cursor();
+            screen.left();
+            last_match = screen.rfind(query);
+            if last_match {
+                screen.buffer().clear_highlight(cy);
+                let cur = screen.cursor();
+                screen
+                    .buffer()
+                    .highlight(cur.0, cur.1, query.len(), Highlight::Match);
+            } else {
+                screen.set_cursor(cx, cy);
+            }
+            screen.adjust();
+        }
+        Key::ArrowDown | Key::ArrowRight => {
+            direction = Direction::Down;
+            if !last_match {
+                screen.set_cursor(0, 0);
+            }
+            let (cx, cy) = screen.cursor();
+            screen.right();
+            last_match = screen.find(query);
+            if last_match {
+                screen.buffer().clear_highlight(cy);
+                let cur = screen.cursor();
+                screen
+                    .buffer()
+                    .highlight(cur.0, cur.1, query.len(), Highlight::Match);
+            } else {
+                screen.set_cursor(cx, cy);
+            }
+            screen.adjust();
+        }
+        _ => {
+            if !last_match {
+                match direction {
+                    Direction::Up => {
+                        let buffer_len = screen.buffer().len();
+                        let buffer_last_line = screen.buffer().get_line(buffer_len - 1);
+                        if let Some(last_line) = buffer_last_line {
+                            screen.set_cursor(last_line.len() - 1, buffer_len)
+                        }
+                    }
+                    Direction::Down => {
+                        screen.set_cursor(0, 0);
                     }
                 }
-                let (cx, cy) = screen.cursor();
-                screen.left(buffer);
-                last_match = screen.rfind(query, buffer);
-                if last_match {
-                    buffer.clear_highlight(cy);
-                    let cur = screen.cursor();
-                    buffer.highlight(cur.0, cur.1, query.len(), Highlight::Match);
-                } else {
-                    screen.set_cursor(cx, cy);
-                }
-                screen.adjust(buffer);
             }
-            Key::ArrowDown | Key::ArrowRight => {
-                direction = Direction::Down;
-                if !last_match {
-                    screen.set_cursor(0, 0);
-                }
-                let (cx, cy) = screen.cursor();
-                screen.right(buffer);
-                last_match = screen.find(query, buffer);
-                if last_match {
-                    buffer.clear_highlight(cy);
-                    let cur = screen.cursor();
-                    buffer.highlight(cur.0, cur.1, query.len(), Highlight::Match);
-                } else {
-                    screen.set_cursor(cx, cy);
-                }
-                screen.adjust(buffer);
+            let (_, cy) = screen.cursor();
+            last_match = match direction {
+                Direction::Up => screen.rfind(query),
+                Direction::Down => screen.find(query),
+            };
+            screen.buffer().clear_highlight(cy);
+            if last_match {
+                let cur = screen.cursor();
+                screen
+                    .buffer()
+                    .highlight(cur.0, cur.1, query.len(), Highlight::Match);
             }
-            _ => {
-                if !last_match {
-                    match direction {
-                        Direction::Up => {
-                            if let Some(last_line) = buffer.get_line(buffer.len() - 1) {
-                                screen.set_cursor(last_line.len() - 1, buffer.len())
-                            }
-                        }
-                        Direction::Down => {
-                            screen.set_cursor(0, 0);
-                        }
-                    }
-                }
-                let (_, cy) = screen.cursor();
-                last_match = match direction {
-                    Direction::Up => screen.rfind(query, buffer),
-                    Direction::Down => screen.find(query, buffer),
-                };
-                buffer.clear_highlight(cy);
-                if last_match {
-                    let cur = screen.cursor();
-                    buffer.highlight(cur.0, cur.1, query.len(), Highlight::Match);
-                }
-                screen.adjust(buffer);
-            }
-        };
+            screen.adjust();
+        }
+    };
     let (cx, cy) = screen.cursor();
     let (offset_x, offset_y) = screen.offset();
 
-    match prompt(
-        reader,
-        screen,
-        buffer,
-        message_bar,
-        "Search: ",
-        &mut callback,
-    ) {
+    match prompt(reader, screen, message_bar, "Search: ", &mut callback) {
         Ok(_) => {}
         Err(_) => {
             screen.set_cursor(cx, cy);
             screen.set_offset(offset_x, offset_y);
-            screen.adjust(buffer);
+            screen.adjust();
         }
     }
     Ok(())
@@ -227,35 +221,34 @@ fn process_find_command(
 pub fn process_command(
     reader: &mut dyn Read,
     screen: &mut EditorScreen,
-    buffer: &mut EditorBuffer,
     message_bar: &mut MessageBar,
     quit_times: &mut usize,
     command: Command,
 ) -> Result<(), Error> {
     match command {
-        Command::Exit => process_exit_command(buffer, message_bar, quit_times)?,
-        Command::Save => process_save_command(reader, screen, buffer, message_bar)?,
-        Command::Find => process_find_command(reader, screen, buffer, message_bar)?,
-        Command::ArrowDown => screen.down(buffer),
-        Command::ArrowUp => screen.up(buffer),
-        Command::ArrowLeft => screen.left(buffer),
-        Command::ArrowRight => screen.right(buffer),
-        Command::PageUp => screen.page_up(buffer),
-        Command::PageDown => screen.page_down(buffer),
-        Command::Home => screen.home(buffer),
-        Command::Enter => screen.insert_new_line(buffer),
-        Command::End => screen.end(buffer),
+        Command::Exit => process_exit_command(screen.buffer(), message_bar, quit_times)?,
+        Command::Save => process_save_command(reader, screen, message_bar)?,
+        Command::Find => process_find_command(reader, screen, message_bar)?,
+        Command::ArrowDown => screen.down(),
+        Command::ArrowUp => screen.up(),
+        Command::ArrowLeft => screen.left(),
+        Command::ArrowRight => screen.right(),
+        Command::PageUp => screen.page_up(),
+        Command::PageDown => screen.page_down(),
+        Command::Home => screen.home(),
+        Command::Enter => screen.insert_new_line(),
+        Command::End => screen.end(),
         Command::Delete => {
-            screen.right(buffer);
-            screen.delete_char(buffer);
+            screen.right();
+            screen.delete_char();
         }
-        Command::Backspace => screen.delete_char(buffer),
-        Command::Input(c) => screen.insert_char(buffer, c),
+        Command::Backspace => screen.delete_char(),
+        Command::Input(c) => screen.insert_char(c),
         Command::Escape => {}
         Command::Noop => {}
     }
 
-    screen.adjust(buffer);
+    screen.adjust();
     *quit_times = QUIT_TIMES;
 
     Ok(())
@@ -264,13 +257,12 @@ pub fn process_command(
 pub fn prompt<T>(
     reader: &mut dyn Read,
     screen: &mut EditorScreen,
-    buffer: &mut EditorBuffer,
     message_bar: &mut MessageBar,
     prompt: &str,
     callback: &mut T,
 ) -> Result<String, Error>
 where
-    T: FnMut(&str, Key, &mut EditorScreen, &mut EditorBuffer),
+    T: FnMut(&str, Key, &mut EditorScreen),
 {
     let mut input = String::new();
     let mut buf = String::from(prompt);
@@ -278,27 +270,27 @@ where
     message_bar.set(buf.clone(), SystemTime::now());
 
     loop {
-        refresh_screen(screen, buffer, message_bar)?;
+        refresh_screen(screen, message_bar)?;
         match read_key(reader)? {
             Key::Enter => {
                 message_bar.set("".to_string(), SystemTime::now());
-                callback(&input, Key::Enter, screen, buffer);
+                callback(&input, Key::Enter, screen);
                 return Ok(input);
             }
             Key::Escape => {
                 message_bar.set("aborted".to_string(), SystemTime::now());
-                callback(&input, Key::Escape, screen, buffer);
+                callback(&input, Key::Escape, screen);
                 return Err(Error::other("aborted"));
             }
             Key::NormalKey(c) => {
                 input.push(c);
                 buf.push(c);
                 message_bar.set(buf.clone(), SystemTime::now());
-                callback(&input, Key::NormalKey(c), screen, buffer);
+                callback(&input, Key::NormalKey(c), screen);
             }
             key => {
                 message_bar.set(buf.clone(), SystemTime::now());
-                callback(&input, key, screen, buffer);
+                callback(&input, key, screen);
             }
         }
     }
