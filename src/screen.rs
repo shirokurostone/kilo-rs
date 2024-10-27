@@ -45,31 +45,51 @@ impl Terminal {
     }
 }
 
+#[derive(Debug, PartialEq)]
+struct Component {
+    x: usize,
+    y: usize,
+    width: usize,
+    height: usize,
+}
+
+impl Component {
+    pub fn set_size(&mut self, x: usize, y: usize, width: usize, height: usize) {
+        self.x = x;
+        self.y = y;
+        self.width = width;
+        self.height = height;
+    }
+}
+
 trait Drawable {
     fn draw(&self, buf: &mut String) -> Result<(), Error>;
 }
 
 #[derive(Debug, PartialEq)]
 pub struct EditorScreen {
+    component: Component,
     cx: usize,
     cy: usize,
     rx: usize,
     offset_x: usize,
     offset_y: usize,
-    width: usize,
-    height: usize,
 }
 
 impl EditorScreen {
     pub fn new() -> EditorScreen {
         EditorScreen {
+            component: Component {
+                x: 0,
+                y: 0,
+                width: 0,
+                height: 0,
+            },
             cx: 0,
             cy: 0,
             rx: 0,
             offset_x: 0,
             offset_y: 0,
-            width: 0,
-            height: 0,
         }
     }
 
@@ -91,9 +111,8 @@ impl EditorScreen {
         self.offset_y = y;
     }
 
-    pub fn set_size(&mut self, width: usize, height: usize) {
-        self.width = width;
-        self.height = height;
+    pub fn set_size(&mut self, x: usize, y: usize, width: usize, height: usize) {
+        self.component.set_size(x, y, width, height);
     }
 
     pub fn down(&mut self, buffer: &EditorBuffer) {
@@ -132,14 +151,14 @@ impl EditorScreen {
 
     pub fn page_up(&mut self, buffer: &EditorBuffer) {
         self.cy = self.offset_y;
-        for _ in 0..self.height {
+        for _ in 0..self.component.height {
             self.up(buffer);
         }
     }
 
     pub fn page_down(&mut self, buffer: &EditorBuffer) {
-        self.cy = self.offset_y + self.height - 1;
-        for _ in 0..self.height {
+        self.cy = self.offset_y + self.component.height - 1;
+        for _ in 0..self.component.height {
             self.down(buffer);
         }
     }
@@ -240,15 +259,15 @@ impl EditorScreen {
         if self.rx < self.offset_x {
             self.offset_x = self.rx;
         }
-        if self.rx >= self.offset_x + self.width {
-            self.offset_x = self.rx - self.width + 1;
+        if self.rx >= self.offset_x + self.component.width {
+            self.offset_x = self.rx - self.component.width + 1;
         }
 
         if self.cy < self.offset_y {
             self.offset_y = self.cy;
         }
-        if self.cy >= self.offset_y + self.height {
-            self.offset_y = self.cy - self.height + 1;
+        if self.cy >= self.offset_y + self.component.height {
+            self.offset_y = self.cy - self.component.height + 1;
         }
     }
 }
@@ -261,6 +280,7 @@ impl Default for EditorScreen {
 
 #[derive(Debug, PartialEq)]
 pub struct MessageBar {
+    component: Component,
     message: String,
     updated_at: SystemTime,
 }
@@ -268,6 +288,12 @@ pub struct MessageBar {
 impl MessageBar {
     pub fn new(message: String, time: SystemTime) -> MessageBar {
         MessageBar {
+            component: Component {
+                x: 0,
+                y: 0,
+                width: 0,
+                height: 0,
+            },
             message,
             updated_at: time,
         }
@@ -283,10 +309,17 @@ impl MessageBar {
             .map(|d| d.as_secs() < 5)
             .map_or(None, |b| if b { Some(self.message.clone()) } else { None })
     }
+
+    pub fn set_size(&mut self, x: usize, y: usize, width: usize, height: usize) {
+        self.component.set_size(x, y, width, height);
+    }
 }
 
 impl Drawable for MessageBar {
     fn draw(&self, buf: &mut String) -> Result<(), Error> {
+        let cursor = move_cursor(self.component.x, self.component.y);
+        buf.push_str(&cursor);
+
         buf.push_str(ESCAPE_SEQUENCE_CLEAR_LINE);
 
         let now = SystemTime::now();
@@ -305,7 +338,16 @@ pub fn refresh_screen(
 ) -> Result<(), Error> {
     let mut buf = String::new();
     let rows = Rows { screen, buffer };
-    let status_bar = StatusBar { screen, buffer };
+    let status_bar = StatusBar {
+        component: Component {
+            x: 0,
+            y: screen.component.height,
+            width: screen.component.width,
+            height: 1,
+        },
+        screen,
+        buffer,
+    };
 
     buf.push_str(ESCAPE_SEQUENCE_HIDE_CURSOR);
     buf.push_str(ESCAPE_SEQUENCE_MOVE_CURSOR_TO_FIRST_POSITION);
@@ -314,7 +356,10 @@ pub fn refresh_screen(
     status_bar.draw(&mut buf)?;
     message_bar.draw(&mut buf)?;
 
-    let cursor = move_cursor(screen.rx - screen.offset_x, screen.cy - screen.offset_y);
+    let cursor = move_cursor(
+        screen.component.x + screen.rx - screen.offset_x,
+        screen.component.y + screen.cy - screen.offset_y,
+    );
     buf.push_str(&cursor);
 
     buf.push_str(ESCAPE_SEQUENCE_SHOW_CURSOR);
@@ -332,20 +377,24 @@ struct Rows<'a> {
 
 impl Drawable for Rows<'_> {
     fn draw(&self, buf: &mut String) -> Result<(), Error> {
-        for i in 0..self.screen.height {
+        for i in 0..self.screen.component.height {
             let file_line_no = i + self.screen.offset_y;
 
+            let cursor = move_cursor(self.screen.component.x, i + self.screen.component.y);
+            buf.push_str(&cursor);
+
             if file_line_no < self.buffer.len() {
-                if let Some(render) =
-                    self.buffer
-                        .get_render(file_line_no, self.screen.offset_x, self.screen.width)
-                {
+                if let Some(render) = self.buffer.get_render(
+                    file_line_no,
+                    self.screen.offset_x,
+                    self.screen.component.width,
+                ) {
                     buf.push_str(&render);
                 }
-            } else if self.buffer.is_empty() && i == self.screen.height / 3 {
+            } else if self.buffer.is_empty() && i == self.screen.component.height / 3 {
                 let title = format!("kilo-rs -- version {}", KILO_VERSION);
-                let t: String = title.chars().take(self.screen.width).collect();
-                let mut padding = (self.screen.width - t.len()) / 2;
+                let t: String = title.chars().take(self.screen.component.width).collect();
+                let mut padding = (self.screen.component.width - t.len()) / 2;
                 if padding > 0 {
                     buf.push('~');
                     padding -= 1;
@@ -367,12 +416,22 @@ impl Drawable for Rows<'_> {
 }
 
 struct StatusBar<'a> {
+    component: Component,
     screen: &'a EditorScreen,
     buffer: &'a EditorBuffer,
 }
 
+impl StatusBar<'_> {
+    pub fn set_size(&mut self, x: usize, y: usize, width: usize, height: usize) {
+        self.component.set_size(x, y, width, height);
+    }
+}
+
 impl Drawable for StatusBar<'_> {
     fn draw(&self, buf: &mut String) -> Result<(), Error> {
+        let cursor = move_cursor(self.component.x, self.component.y);
+        buf.push_str(&cursor);
+
         buf.push_str(ESCAPE_SEQUENCE_STYLE_REVERSE);
 
         let status = format!(
@@ -380,7 +439,7 @@ impl Drawable for StatusBar<'_> {
             self.buffer
                 .get_filepath()
                 .unwrap_or_else(|| "[No Name]".to_string()),
-            self.screen.height,
+            self.component.height,
             if self.buffer.is_dirty() {
                 "(modified)"
             } else {
@@ -388,8 +447,8 @@ impl Drawable for StatusBar<'_> {
             }
         );
 
-        if self.screen.width < status.len() {
-            let s: String = status.chars().take(self.screen.width).collect();
+        if self.component.width < status.len() {
+            let s: String = status.chars().take(self.component.width).collect();
             buf.push_str(&s);
         } else {
             buf.push_str(&status);
@@ -402,14 +461,15 @@ impl Drawable for StatusBar<'_> {
                 self.screen.cy + 1,
                 self.buffer.len()
             );
-            if self.screen.width as isize - status.len() as isize - right_status.len() as isize > 0
+            if self.component.width as isize - status.len() as isize - right_status.len() as isize
+                > 0
             {
-                for _ in 0..(self.screen.width - status.len() - right_status.len()) {
+                for _ in 0..(self.component.width - status.len() - right_status.len()) {
                     buf.push(' ');
                 }
                 buf.push_str(&right_status);
             } else {
-                for _ in 0..(self.screen.width - status.len()) {
+                for _ in 0..(self.component.width - status.len()) {
                     buf.push(' ');
                 }
             }
@@ -434,8 +494,7 @@ mod tests {
         buffer.load_string(text.repeat(100));
 
         let mut screen = EditorScreen::new();
-        screen.width = 20;
-        screen.height = 20;
+        screen.component.set_size(0, 0, 20, 20);
 
         screen.cx = 200;
         screen.cy = 0;

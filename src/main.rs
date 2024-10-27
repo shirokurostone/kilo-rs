@@ -51,7 +51,10 @@ fn run(args: Vec<String>) -> Result<(), Error> {
 
     config
         .screen
-        .set_size(terminal.get_width(), terminal.get_height() - 2);
+        .set_size(0, 0, terminal.get_width(), terminal.get_height() - 2);
+    config
+        .message_bar
+        .set_size(0, terminal.get_height() - 1, terminal.get_width(), 1);
 
     if args.len() > 1 {
         config.buffer.load_file(args.get(1).unwrap().to_string())?;
@@ -63,7 +66,10 @@ fn run(args: Vec<String>) -> Result<(), Error> {
         if terminal.update()? {
             config
                 .screen
-                .set_size(terminal.get_width(), terminal.get_height() - 2);
+                .set_size(0, 0, terminal.get_width(), terminal.get_height() - 2);
+            config
+                .message_bar
+                .set_size(0, terminal.get_height() - 1, terminal.get_width() - 1, 1);
         }
 
         refresh_screen(&config.screen, &config.buffer, &config.message_bar)?;
