@@ -414,6 +414,7 @@ impl Drawable for EditorScreen {
     }
 }
 
+#[derive(Debug, PartialEq)]
 struct StatusBar {
     component: Component,
     left_status: String,
