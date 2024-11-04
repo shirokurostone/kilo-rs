@@ -55,11 +55,25 @@ struct Component {
 }
 
 impl Component {
+    pub fn new(x: usize, y: usize, width: usize, height: usize) -> Component {
+        Component {
+            x,
+            y,
+            width,
+            height,
+        }
+    }
     pub fn set_size(&mut self, x: usize, y: usize, width: usize, height: usize) {
         self.x = x;
         self.y = y;
         self.width = width;
         self.height = height;
+    }
+}
+
+impl Default for Component {
+    fn default() -> Self {
+        Component::new(0, 0, 0, 0)
     }
 }
 
@@ -78,20 +92,10 @@ pub struct UiGroup {
 impl UiGroup {
     pub fn new(message: String, system_time: SystemTime) -> UiGroup {
         UiGroup {
-            component: Component {
-                x: 0,
-                y: 0,
-                width: 0,
-                height: 0,
-            },
+            component: Component::default(),
             screen: EditorScreen::new(),
             status_bar: StatusBar {
-                component: Component {
-                    x: 0,
-                    y: 0,
-                    width: 0,
-                    height: 0,
-                },
+                component: Component::default(),
                 left_status: "".to_string(),
                 right_status: "".to_string(),
             },
