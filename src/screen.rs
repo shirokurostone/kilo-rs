@@ -72,6 +72,7 @@ pub struct UiGroup {
     screen: EditorScreen,
     status_bar: StatusBar,
     message_bar: MessageBar,
+    quit_times: usize,
 }
 
 impl UiGroup {
@@ -95,6 +96,7 @@ impl UiGroup {
                 right_status: "".to_string(),
             },
             message_bar: MessageBar::new(message, system_time),
+            quit_times: QUIT_TIMES,
         }
     }
 
@@ -140,11 +142,10 @@ impl UiGroup {
     pub fn process_command(
         &mut self,
         reader: &mut dyn Read,
-        quit_times: &mut usize,
         command: Command,
     ) -> Result<(), Error> {
         match command {
-            Command::Exit => self.process_exit_command(quit_times)?,
+            Command::Exit => self.process_exit_command()?,
             Command::Save => self.process_save_command(reader)?,
             Command::Find => self.process_find_command(reader)?,
             Command::ArrowDown => self.screen.down(),
@@ -167,7 +168,9 @@ impl UiGroup {
         }
 
         self.post_process();
-        *quit_times = QUIT_TIMES;
+        if command != Command::Exit {
+            self.quit_times = QUIT_TIMES;
+        }
 
         Ok(())
     }
@@ -185,16 +188,16 @@ impl UiGroup {
         )
     }
 
-    pub fn process_exit_command(&mut self, quit_times: &mut usize) -> Result<(), Error> {
+    pub fn process_exit_command(&mut self) -> Result<(), Error> {
         let buffer = &mut self.screen.buffer;
         let message_bar = &mut self.message_bar;
-        if buffer.is_dirty() && *quit_times > 0 {
+        if buffer.is_dirty() && self.quit_times > 0 {
             let warning_message = format!(
                 "WARNING!!! File has unsaved changes. Press Ctrl+Q {} more times to quit.",
-                quit_times
+                self.quit_times
             );
             message_bar.set(warning_message, SystemTime::now());
-            *quit_times -= 1;
+            self.quit_times -= 1;
             return Ok(());
         }
 

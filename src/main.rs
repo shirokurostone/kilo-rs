@@ -27,7 +27,6 @@ fn main() {
 fn run(args: Vec<String>) -> Result<(), Error> {
     let mut stdin = stdin();
     let mut ui_group = UiGroup::new("HELP: Ctrl+Q = quit".to_string(), SystemTime::now());
-    let mut quit_times = QUIT_TIMES;
     let mut terminal = Terminal::new()?;
 
     ui_group.set_size(0, 0, terminal.get_width(), terminal.get_height());
@@ -49,7 +48,7 @@ fn run(args: Vec<String>) -> Result<(), Error> {
         refresh_screen(&mut ui_group)?;
         let key = read_key(&mut stdin)?;
         let command = ui_group.resolve_command(key);
-        match ui_group.process_command(&mut stdin, &mut quit_times, command) {
+        match ui_group.process_command(&mut stdin, command) {
             Err(_) => break,
             Ok(_) => continue,
         }
