@@ -47,7 +47,7 @@ impl Terminal {
 }
 
 #[derive(Debug, PartialEq)]
-struct Component {
+pub struct Component {
     x: usize,
     y: usize,
     width: usize,
@@ -77,7 +77,7 @@ impl Default for Component {
     }
 }
 
-trait Drawable {
+pub trait Drawable {
     fn draw(&self, buf: &mut String) -> Result<(), Error>;
 }
 
@@ -709,7 +709,7 @@ impl Drawable for EditorScreen {
 }
 
 #[derive(Debug, PartialEq)]
-struct StatusBar {
+pub struct StatusBar {
     component: Component,
     left_status: String,
     right_status: String,
