@@ -7,7 +7,7 @@ use crate::escape_sequence::{
     ESCAPE_SEQUENCE_CLEAR_SCREEN, ESCAPE_SEQUENCE_MOVE_CURSOR_TO_FIRST_POSITION,
 };
 use crate::key::read_key;
-use crate::screen::{refresh_screen, resolve_command, Terminal, UiGroup};
+use crate::screen::{refresh_screen, Terminal, UiGroup};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use std::io::{stdin, stdout, Error, Write};
 use std::time::SystemTime;
@@ -48,7 +48,7 @@ fn run(args: Vec<String>) -> Result<(), Error> {
 
         refresh_screen(&mut ui_group)?;
         let key = read_key(&mut stdin)?;
-        let command = resolve_command(key);
+        let command = ui_group.resolve_command(key);
         match ui_group.process_command(&mut stdin, &mut quit_times, command) {
             Err(_) => break,
             Ok(_) => continue,

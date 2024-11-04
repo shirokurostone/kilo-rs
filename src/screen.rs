@@ -113,6 +113,30 @@ impl UiGroup {
         &mut self.message_bar
     }
 
+    pub fn resolve_command(&self, key: Key) -> Command {
+        match key {
+            Key::ControlSequence('f') => Command::Find,
+            Key::ControlSequence('h') => Command::Backspace,
+            Key::ControlSequence('m') => Command::Enter,
+            Key::ControlSequence('q') => Command::Exit,
+            Key::ControlSequence('s') => Command::Save,
+            Key::ArrowLeft => Command::ArrowLeft,
+            Key::ArrowRight => Command::ArrowRight,
+            Key::ArrowUp => Command::ArrowUp,
+            Key::ArrowDown => Command::ArrowDown,
+            Key::PageUp => Command::PageUp,
+            Key::PageDown => Command::PageDown,
+            Key::Home => Command::Home,
+            Key::End => Command::End,
+            Key::Enter => Command::Enter,
+            Key::Delete => Command::Delete,
+            Key::Backspace => Command::Backspace,
+            Key::Escape => Command::Escape,
+            Key::NormalKey(c) => Command::Input(c),
+            _ => Command::Noop,
+        }
+    }
+
     pub fn process_command(
         &mut self,
         reader: &mut dyn Read,
@@ -850,29 +874,6 @@ pub enum Command {
     Noop,
 }
 
-pub fn resolve_command(key: Key) -> Command {
-    match key {
-        Key::ControlSequence('f') => Command::Find,
-        Key::ControlSequence('h') => Command::Backspace,
-        Key::ControlSequence('m') => Command::Enter,
-        Key::ControlSequence('q') => Command::Exit,
-        Key::ControlSequence('s') => Command::Save,
-        Key::ArrowLeft => Command::ArrowLeft,
-        Key::ArrowRight => Command::ArrowRight,
-        Key::ArrowUp => Command::ArrowUp,
-        Key::ArrowDown => Command::ArrowDown,
-        Key::PageUp => Command::PageUp,
-        Key::PageDown => Command::PageDown,
-        Key::Home => Command::Home,
-        Key::End => Command::End,
-        Key::Enter => Command::Enter,
-        Key::Delete => Command::Delete,
-        Key::Backspace => Command::Backspace,
-        Key::Escape => Command::Escape,
-        Key::NormalKey(c) => Command::Input(c),
-        _ => Command::Noop,
-    }
-}
 #[derive(Debug, PartialEq, Clone, Copy)]
 enum Direction {
     Up,
