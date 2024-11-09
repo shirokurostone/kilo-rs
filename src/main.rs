@@ -7,7 +7,7 @@ use crate::escape_sequence::{
     ESCAPE_SEQUENCE_CLEAR_SCREEN, ESCAPE_SEQUENCE_MOVE_CURSOR_TO_FIRST_POSITION,
 };
 use crate::key::read_key;
-use crate::screen::{refresh_screen, Terminal, UiGroup};
+use crate::screen::{refresh_screen, Pane, Terminal};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use std::io::{stdin, stdout, Error, Write};
 use std::time::SystemTime;
@@ -26,14 +26,13 @@ fn main() {
 
 fn run(args: Vec<String>) -> Result<(), Error> {
     let mut stdin = stdin();
-    let mut ui_group = UiGroup::new("HELP: Ctrl+Q = quit".to_string(), SystemTime::now());
+    let mut pane = Pane::new("HELP: Ctrl+Q = quit".to_string(), SystemTime::now());
     let mut terminal = Terminal::new()?;
 
-    ui_group.set_size(0, 0, terminal.get_width(), terminal.get_height());
+    pane.set_size(0, 0, terminal.get_width(), terminal.get_height());
 
     if args.len() > 1 {
-        ui_group
-            .screen()
+        pane.screen()
             .buffer()
             .load_file(args.get(1).unwrap().to_string())?;
     }
@@ -42,13 +41,13 @@ fn run(args: Vec<String>) -> Result<(), Error> {
 
     loop {
         if terminal.update()? {
-            ui_group.set_size(0, 0, terminal.get_width(), terminal.get_height());
+            pane.set_size(0, 0, terminal.get_width(), terminal.get_height());
         }
 
-        refresh_screen(&mut ui_group)?;
+        refresh_screen(&mut pane)?;
         let key = read_key(&mut stdin)?;
-        let command = ui_group.resolve_command(key);
-        match ui_group.process_command(&mut stdin, command) {
+        let command = pane.resolve_command(key);
+        match pane.process_command(&mut stdin, command) {
             Err(_) => break,
             Ok(_) => continue,
         }

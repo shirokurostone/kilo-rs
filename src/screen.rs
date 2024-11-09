@@ -81,19 +81,19 @@ pub trait Drawable {
     fn draw(&self, buf: &mut String) -> Result<(), Error>;
 }
 
-pub struct UiGroup {
+pub struct Pane {
     component: Component,
-    screen: EditorScreen,
+    screen: Screen,
     status_bar: StatusBar,
     message_bar: MessageBar,
     quit_times: usize,
 }
 
-impl UiGroup {
-    pub fn new(message: String, system_time: SystemTime) -> UiGroup {
-        UiGroup {
+impl Pane {
+    pub fn new(message: String, system_time: SystemTime) -> Pane {
+        Pane {
             component: Component::default(),
-            screen: EditorScreen::new(),
+            screen: Screen::new(),
             status_bar: StatusBar {
                 component: Component::default(),
                 left_status: "".to_string(),
@@ -111,7 +111,7 @@ impl UiGroup {
         self.message_bar.set_size(x, y + height - 1, width, 1);
     }
 
-    pub fn screen(&mut self) -> &mut EditorScreen {
+    pub fn screen(&mut self) -> &mut Screen {
         &mut self.screen
     }
 
@@ -209,7 +209,7 @@ impl UiGroup {
     }
 
     pub fn process_save_command(&mut self, reader: &mut dyn Read) -> Result<(), Error> {
-        let mut callback = |_: &str, _: Key, _: &mut EditorScreen| {};
+        let mut callback = |_: &str, _: Key, _: &mut Screen| {};
 
         let filepath = self.screen.buffer().get_filepath();
         let ret = if filepath.is_none() {
@@ -238,7 +238,7 @@ impl UiGroup {
     pub fn process_find_command(&mut self, reader: &mut dyn Read) -> Result<(), Error> {
         let mut direction = Direction::Down;
         let mut last_match = true;
-        let mut callback = |query: &str, key: Key, screen: &mut EditorScreen| match key {
+        let mut callback = |query: &str, key: Key, screen: &mut Screen| match key {
             Key::ArrowUp | Key::ArrowLeft => {
                 direction = Direction::Up;
                 if !last_match {
@@ -332,7 +332,7 @@ impl UiGroup {
         callback: &mut T,
     ) -> Result<String, Error>
     where
-        T: FnMut(&str, Key, &mut EditorScreen),
+        T: FnMut(&str, Key, &mut Screen),
     {
         let mut input = String::new();
         let mut buf = String::from(prompt);
@@ -368,7 +368,7 @@ impl UiGroup {
     }
 }
 
-impl Drawable for UiGroup {
+impl Drawable for Pane {
     fn draw(&self, buf: &mut String) -> Result<(), Error> {
         self.screen.draw(buf)?;
         self.status_bar.draw(buf)?;
@@ -378,7 +378,7 @@ impl Drawable for UiGroup {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct EditorScreen {
+pub struct Screen {
     component: Component,
     buffer: EditorBuffer,
     cx: usize,
@@ -388,15 +388,10 @@ pub struct EditorScreen {
     offset_y: usize,
 }
 
-impl EditorScreen {
-    pub fn new() -> EditorScreen {
-        EditorScreen {
-            component: Component {
-                x: 0,
-                y: 0,
-                width: 0,
-                height: 0,
-            },
+impl Screen {
+    pub fn new() -> Screen {
+        Screen {
+            component: Component::default(),
             buffer: EditorBuffer::new(),
             cx: 0,
             cy: 0,
@@ -591,7 +586,7 @@ impl EditorScreen {
     }
 }
 
-impl Default for EditorScreen {
+impl Default for Screen {
     fn default() -> Self {
         Self::new()
     }
@@ -607,12 +602,7 @@ pub struct MessageBar {
 impl MessageBar {
     pub fn new(message: String, time: SystemTime) -> MessageBar {
         MessageBar {
-            component: Component {
-                x: 0,
-                y: 0,
-                width: 0,
-                height: 0,
-            },
+            component: Component::default(),
             message,
             updated_at: time,
         }
@@ -650,14 +640,14 @@ impl Drawable for MessageBar {
     }
 }
 
-pub fn refresh_screen(ui_group: &mut UiGroup) -> Result<(), Error> {
+pub fn refresh_screen(pane: &mut Pane) -> Result<(), Error> {
     let mut buf = String::new();
     buf.push_str(ESCAPE_SEQUENCE_HIDE_CURSOR);
     buf.push_str(ESCAPE_SEQUENCE_MOVE_CURSOR_TO_FIRST_POSITION);
 
-    ui_group.draw(&mut buf)?;
+    pane.draw(&mut buf)?;
 
-    let cursor = ui_group.get_cursor();
+    let cursor = pane.get_cursor();
     let move_cursor_str = move_cursor(cursor.0, cursor.1);
     buf.push_str(&move_cursor_str);
 
@@ -669,7 +659,7 @@ pub fn refresh_screen(ui_group: &mut UiGroup) -> Result<(), Error> {
     Ok(())
 }
 
-impl Drawable for EditorScreen {
+impl Drawable for Screen {
     fn draw(&self, buf: &mut String) -> Result<(), Error> {
         for i in 0..self.component.height {
             let file_line_no = i + self.offset_y;
@@ -720,7 +710,7 @@ impl StatusBar {
         self.component.set_size(x, y, width, height);
     }
 
-    pub fn set_left_status(&mut self, screen: &EditorScreen) {
+    pub fn set_left_status(&mut self, screen: &Screen) {
         self.left_status = format!(
             "{:<20} - {} lines {}",
             screen
@@ -736,7 +726,7 @@ impl StatusBar {
         );
     }
 
-    pub fn set_right_status(&mut self, screen: &EditorScreen) {
+    pub fn set_right_status(&mut self, screen: &Screen) {
         self.right_status = format!(
             "{} | {}/{}",
             screen
@@ -793,7 +783,7 @@ impl Drawable for StatusBar {
 
 #[cfg(test)]
 mod tests {
-    use super::{EditorBuffer, EditorScreen};
+    use super::{EditorBuffer, Screen};
 
     #[test]
     fn test_adjust() {
@@ -802,7 +792,7 @@ mod tests {
         text.push_str("\r\n");
         buffer.load_string(text.repeat(100));
 
-        let mut screen = EditorScreen::new();
+        let mut screen = Screen::new();
         screen.component.set_size(0, 0, 20, 20);
 
         screen.cx = 200;
