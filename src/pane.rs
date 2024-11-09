@@ -38,10 +38,6 @@ impl Pane {
         &mut self.screen
     }
 
-    pub fn message_bar(&mut self) -> &mut MessageBar {
-        &mut self.message_bar
-    }
-
     pub fn resolve_command(&self, key: Key) -> Command {
         match key {
             Key::ControlSequence('f') => Command::Find,
@@ -260,7 +256,7 @@ impl Pane {
         self.message_bar.set(buf.clone(), SystemTime::now());
 
         loop {
-            refresh_screen(self);
+            refresh_screen(self)?;
             match read_key(reader)? {
                 Key::Enter => {
                     self.message_bar.set("".to_string(), SystemTime::now());
