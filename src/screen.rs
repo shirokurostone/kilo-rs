@@ -296,15 +296,84 @@ impl Drawable for Screen {
 mod tests {
     use super::{EditorBuffer, Screen};
 
-    #[test]
-    fn test_adjust() {
-        let mut buffer = EditorBuffer::new();
-        let mut text = "*".to_string().repeat(100);
-        text.push_str("\r\n");
-        buffer.load_string(text.repeat(100));
-
+    fn initialize_screen() -> Screen {
         let mut screen = Screen::new();
         screen.component.set_size(0, 0, 20, 20);
+
+        let mut text = "*".to_string().repeat(100);
+        text.push_str("\r\n");
+        screen.buffer.load_string(text.repeat(100));
+
+        screen
+    }
+
+    fn cursor_test_runner<T>(test_cases: &[([usize; 2], [usize; 2])], func: T)
+    where
+        T: Fn(&mut Screen) -> (),
+    {
+        let mut screen = initialize_screen();
+        for (i, data) in test_cases.iter().enumerate() {
+            [screen.cx, screen.cy] = data.0;
+            func(&mut screen);
+            assert_eq!(data.1, [screen.cx, screen.cy], "i={}", i);
+        }
+    }
+
+    #[test]
+    fn test_cursor_left() {
+        cursor_test_runner(
+            &[([0, 0], [0, 0]), ([1, 0], [0, 0]), ([0, 1], [100, 0])][..],
+            |s: &mut Screen| s.left(),
+        );
+    }
+
+    #[test]
+    fn test_cursor_right() {
+        cursor_test_runner(
+            &[
+                ([0, 0], [1, 0]),
+                ([100, 0], [0, 1]),
+                ([100, 100], [100, 100]),
+            ][..],
+            |s: &mut Screen| s.right(),
+        );
+    }
+
+    #[test]
+    fn test_cursor_up() {
+        cursor_test_runner(
+            &[([0, 0], [0, 0]), ([0, 1], [0, 0])][..],
+            |s: &mut Screen| s.up(),
+        );
+    }
+
+    #[test]
+    fn test_cursor_down() {
+        cursor_test_runner(
+            &[([0, 0], [0, 1]), ([0, 100], [0, 100])][..],
+            |s: &mut Screen| s.down(),
+        );
+    }
+
+    #[test]
+    fn test_cursor_home() {
+        cursor_test_runner(
+            &[([0, 0], [0, 0]), ([100, 0], [0, 0])][..],
+            |s: &mut Screen| s.home(),
+        );
+    }
+
+    #[test]
+    fn test_cursor_end() {
+        cursor_test_runner(
+            &[([0, 0], [100, 0]), ([100, 0], [100, 0])][..],
+            |s: &mut Screen| s.end(),
+        );
+    }
+
+    #[test]
+    fn test_adjust() {
+        let mut screen = initialize_screen();
 
         screen.cx = 200;
         screen.cy = 0;
