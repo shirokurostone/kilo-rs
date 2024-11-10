@@ -1,6 +1,6 @@
 use crate::buffer::EditorBuffer;
 use crate::escape_sequence::{
-    move_cursor, ESCAPE_SEQUENCE_CLEAR_LINE, ESCAPE_SEQUENCE_HIDE_CURSOR,
+    move_terminal_cursor, ESCAPE_SEQUENCE_CLEAR_LINE, ESCAPE_SEQUENCE_HIDE_CURSOR,
     ESCAPE_SEQUENCE_MOVE_CURSOR_TO_FIRST_POSITION, ESCAPE_SEQUENCE_SHOW_CURSOR,
 };
 use crate::pane::Pane;
@@ -216,7 +216,7 @@ impl Screen {
         }
     }
 
-    pub fn get_cursor(&self) -> (usize, usize) {
+    pub fn get_terminal_cursor(&self) -> (usize, usize) {
         (
             self.component.x() + self.rx - self.offset_x,
             self.component.y() + self.cy - self.offset_y,
@@ -241,8 +241,8 @@ pub fn refresh_screen(pane: &mut Pane) -> Result<(), Error> {
 
     pane.draw(&mut buf)?;
 
-    let cursor = pane.get_cursor();
-    let move_cursor_str = move_cursor(cursor.0, cursor.1);
+    let cursor = pane.get_terminal_cursor();
+    let move_cursor_str = move_terminal_cursor(cursor.0, cursor.1);
     buf.push_str(&move_cursor_str);
 
     buf.push_str(ESCAPE_SEQUENCE_SHOW_CURSOR);
@@ -258,7 +258,7 @@ impl Drawable for Screen {
         for i in 0..self.component.height() {
             let file_line_no = i + self.offset_y;
 
-            let cursor = move_cursor(self.component.x(), i + self.component.y());
+            let cursor = move_terminal_cursor(self.component.x(), i + self.component.y());
             buf.push_str(&cursor);
 
             if file_line_no < self.buffer.len() {

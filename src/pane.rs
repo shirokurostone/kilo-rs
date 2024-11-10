@@ -104,8 +104,8 @@ impl Pane {
         self.status_bar.set_right_status(&mut self.screen);
     }
 
-    pub fn get_cursor(&self) -> (usize, usize) {
-        self.screen.get_cursor()
+    pub fn get_terminal_cursor(&self) -> (usize, usize) {
+        self.screen.get_terminal_cursor()
     }
 
     pub fn process_exit_command(&mut self) -> Result<(), Error> {

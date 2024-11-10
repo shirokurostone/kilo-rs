@@ -1,5 +1,5 @@
 use crate::escape_sequence::{
-    move_cursor, ESCAPE_SEQUENCE_STYLE_RESET, ESCAPE_SEQUENCE_STYLE_REVERSE,
+    move_terminal_cursor, ESCAPE_SEQUENCE_STYLE_RESET, ESCAPE_SEQUENCE_STYLE_REVERSE,
 };
 use crate::screen::Screen;
 use crate::ui::{Component, Drawable};
@@ -56,7 +56,7 @@ impl StatusBar {
 
 impl Drawable for StatusBar {
     fn draw(&self, buf: &mut String) -> Result<(), Error> {
-        let cursor = move_cursor(self.component.x(), self.component.y());
+        let cursor = move_terminal_cursor(self.component.x(), self.component.y());
         buf.push_str(&cursor);
 
         buf.push_str(ESCAPE_SEQUENCE_STYLE_REVERSE);

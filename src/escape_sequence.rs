@@ -6,7 +6,7 @@ pub const ESCAPE_SEQUENCE_STYLE_REVERSE: &str = "\x1b[7m";
 pub const ESCAPE_SEQUENCE_HIDE_CURSOR: &str = "\x1b[?25l";
 pub const ESCAPE_SEQUENCE_SHOW_CURSOR: &str = "\x1b[?25h";
 
-pub fn move_cursor(x: usize, y: usize) -> String {
+pub fn move_terminal_cursor(x: usize, y: usize) -> String {
     format!("\x1b[{};{}H", y + 1, x + 1)
 }
 

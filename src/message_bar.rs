@@ -1,4 +1,4 @@
-use crate::escape_sequence::{move_cursor, ESCAPE_SEQUENCE_CLEAR_LINE};
+use crate::escape_sequence::{move_terminal_cursor, ESCAPE_SEQUENCE_CLEAR_LINE};
 use crate::ui::{Component, Drawable};
 use std::io::Error;
 use std::time::SystemTime;
@@ -37,7 +37,7 @@ impl MessageBar {
 
 impl Drawable for MessageBar {
     fn draw(&self, buf: &mut String) -> Result<(), Error> {
-        let cursor = move_cursor(self.component.x(), self.component.y());
+        let cursor = move_terminal_cursor(self.component.x(), self.component.y());
         buf.push_str(&cursor);
 
         buf.push_str(ESCAPE_SEQUENCE_CLEAR_LINE);
